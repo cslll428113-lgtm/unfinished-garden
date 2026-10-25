@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CanvasRenderer } from './canvas-renderer.js';
+import { generateGarden } from './random-garden.js';
 import { SEASONS, DECIDUOUS, normalizeSeason, seasonalLook } from './seasons.js';
 
 const $ = id => document.getElementById(id);
@@ -288,8 +289,50 @@ document.querySelectorAll('[data-season-choice]').forEach(button=>button.onclick
  checkpoint();state.season=next;applySeason();finish();toast(SEASONS[next].title+' · '+SEASONS[next].note);
 });
 applySeason();
+// A draw is a draft. Only accepting it changes state, history or local storage.
+let gardenDraw=null,lastDrawTheme=null;
+function gardenPortrait(plants){
+ const draft=new THREE.Group();
+ for(const p of plants){const g=plantTemplate(p.species).clone(true);g.position.set(p.x,p.level*3.1+.015,p.z);g.rotation.y=p.rotation;g.scale.setScalar(p.scale);draft.add(g);}
+ const hidden=[plantsRoot,litterGround,litterUpper,ring,previewRing,rainLines,...(ghost?[ghost]:[])];
+ const visibility=hidden.map(o=>o.visible),upperVisible=upper.visible,ratio=renderer.getPixelRatio();
+ const cam=new THREE.PerspectiveCamera(33,1.6,.1,100);cam.position.set(15,12,17);cam.lookAt(0,1.9,0);
+ scene.add(draft);
+ try{
+  hidden.forEach(o=>o.visible=false);upper.visible=true;
+  renderer.setPixelRatio(1);renderer.setSize(800,500,false);renderer.render(scene,cam);
+  const image=document.createElement('canvas');image.width=800;image.height=500;const ctx=image.getContext('2d');
+  ctx.fillStyle=scene.userData.backdropColor;ctx.fillRect(0,0,800,500);ctx.drawImage(renderer.domElement,0,0);
+  return image.toDataURL('image/jpeg',.9);
+ }finally{
+  scene.remove(draft);draft.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+  hidden.forEach((o,i)=>o.visible=visibility[i]);upper.visible=upperVisible;
+  renderer.setPixelRatio(ratio);resize();renderer.render(scene,camera);
+ }
+}
+function drawGarden(){
+ const next=generateGarden({seed:crypto.getRandomValues(new Uint32Array(1))[0],season:state.season,excludeTheme:lastDrawTheme});
+ const preview=gardenPortrait(next.plants);gardenDraw=next;lastDrawTheme=next.theme.id;
+ $('drawPreview').src=preview;$('drawTitle').textContent=next.theme.name;$('drawNote').textContent=next.theme.note;
+ $('drawSerial').textContent='NO. '+next.serial;$('drawSeason').textContent=SEASONS[state.season].title;
+ $('drawCount').textContent=`${next.plants.length} 株植物 · ${new Set(next.plants.map(p=>p.species)).size} 种生机 · 双层自由花园`;
+ const names=[...new Set(next.plants.map(p=>p.species))].slice(0,5);
+ $('drawPlants').replaceChildren(...names.map(id=>{const tag=document.createElement('span');tag.textContent=speciesMap[id].name;return tag;}));
+ $('drawCard').style.setProperty('--draw-accent',next.theme.color);
+ $('drawCard').classList.remove('revealed');void $('drawCard').offsetWidth;$('drawCard').classList.add('revealed');
+ if(!$('drawDialog').open)$('drawDialog').showModal();
+}
+function tryDrawGarden(){try{drawGarden();}catch(error){console.error('Garden preview failed',error);toast('花园签暂时没能展开，请再试一次；原花园已保留。');}}
+$('drawGarden').onclick=tryDrawGarden;$('rerollGarden').onclick=tryDrawGarden;
+$('closeDraw').onclick=()=>$('drawDialog').close();
+$('drawDialog').addEventListener('close',()=>{gardenDraw=null;});
+$('keepGarden').onclick=()=>{
+ if(!gardenDraw)return;const chosen=gardenDraw;checkpoint();
+ setMode('view');state.plants=chosen.plants;state.growth=1;renderPlants();setFloor('all');finish();
+ $('welcome').hidden=true;$('drawDialog').close();toast('已收下「'+chosen.theme.name+'」· 可继续编辑或撤销');
+};
 $('about').onclick=()=>$('aboutDialog').showModal();$('closeAbout').onclick=()=>$('aboutDialog').close();$('aboutDialog').addEventListener('click',e=>{if(e.target===$('aboutDialog')){let r=$('aboutDialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('aboutDialog').close();}});
 $('capture').onclick=()=>{let wasRing=ring.visible,wasGhost=ghost?.visible;ring.visible=false;previewRing.visible=false;if(ghost)ghost.visible=false;renderer.render(scene,camera);const c=document.createElement('canvas');c.width=renderer.domElement.width;c.height=renderer.domElement.height+110;let ctx=c.getContext('2d');ctx.fillStyle=scene.userData.backdropColor;ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(renderer.domElement,0,0);ctx.fillStyle='#344a3b';ctx.font='28px SimSun,serif';ctx.fillText('未完之境 · '+SEASONS[state.season].title,35,c.height-60);ctx.font='13px sans-serif';ctx.fillStyle='#7d8972';ctx.fillText(`${state.plants.length} 株植物 / ${new Set(state.plants.map(p=>p.species)).size} 种生机    人停下的地方，自然继续。`,35,c.height-30);const a=document.createElement('a');a.download='未完之境-'+SEASONS[state.season].name+'日花园.png';a.href=c.toDataURL('image/png');a.click();ring.visible=wasRing;if(ghost)ghost.visible=wasGhost;toast('风景已保存为 PNG 图片');};
-window.addEventListener('keydown',e=>{if(e.target.matches('input,textarea')||$('aboutDialog').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(e.key==='Escape')setMode('view');else if(e.key.toLowerCase()==='v')setMode('select');else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}});
+window.addEventListener('keydown',e=>{if(e.target.matches('input,textarea')||$('aboutDialog').open||$('drawDialog').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(e.key==='Escape')setMode('view');else if(e.key.toLowerCase()==='v')setMode('select');else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}});
 let last=performance.now();function animate(now){requestAnimationFrame(animate);let dt=Math.min((now-last)/1000,.05);last=now;controls.update();if(isRaining){for(let i=0;i<rainN;i++){let n=i*6,snow=state.season==='winter',speed=snow?.8:6;rainPositions[n+1]-=dt*speed;rainPositions[n+4]-=dt*speed;if(snow){const drift=Math.sin(now*.001+i)*dt*.18;rainPositions[n]+=drift;rainPositions[n+3]+=drift;}if(rainPositions[n+1]<-.2){rainPositions[n+1]=12;rainPositions[n+4]=12-(snow?.035:.23);}}rainGeo.attributes.position.needsUpdate=true;}renderer.render(scene,camera);}
 requestAnimationFrame(animate);$('loading').style.opacity='0';setTimeout(()=>$('loading').hidden=true,650);save();updateUI();

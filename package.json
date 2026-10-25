@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "dev": "node scripts/serve.mjs",
-    "check": "node --check dist/game.js && node --check dist/canvas-renderer.js && node --check dist/seasons.js && node --check scripts/serve.mjs && node --test tests/seasons.test.mjs"
+    "check": "node --check dist/game.js && node --check dist/canvas-renderer.js && node --check dist/seasons.js && node --check dist/random-garden.js && node --check scripts/serve.mjs && node --test tests/*.test.mjs"
   },
   "engines": {
     "node": ">=18"
