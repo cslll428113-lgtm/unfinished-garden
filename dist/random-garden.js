@@ -1,44 +1,55 @@
-// Seeded compositions: plants grow in small communities around an open courtyard.
-export const GARDEN_THEMES = [
- {id:'blush',name:'花信来迟',note:'淡粉花枝、奶白小花，沿着露台缓缓铺开。',seasons:['spring'],trees:['sakura','magnolia'],flowers:['tulip','daisy','allium'],leaves:['hosta','fern','echeveria'],vines:['wisteria','ivy'],color:'#b8889a'},
- {id:'lilac',name:'紫藤写信',note:'紫色花穗垂过混凝土，风从枝叶间穿过。',seasons:['spring','summer'],trees:['magnolia','maple'],flowers:['allium','salvia','hydrangea'],leaves:['hosta','fern'],vines:['wisteria','ivy'],color:'#9891b5'},
- {id:'blue',name:'雨后蓝调',note:'雾蓝花团藏进浓绿，留一条安静的小径。',seasons:['summer'],trees:['banyan','maple'],flowers:['hydrangea','salvia','allium'],leaves:['fern','monstera','hosta'],vines:['pothos','ivy'],color:'#819ba9'},
- {id:'rose',name:'玫瑰色回声',note:'玫粉花瀑与轻柔草穗，接住楼边的光。',seasons:['summer','autumn'],trees:['maple','ginkgo'],flowers:['bougain','daisy','muhly'],leaves:['grass','hosta','echeveria'],vines:['ivy','pothos'],color:'#b78691'},
- {id:'gold',name:'金风留白',note:'银杏与枫叶染上秋色，草穗在空隙里摇晃。',seasons:['autumn'],trees:['ginkgo','maple'],flowers:['muhly','daisy'],leaves:['grass','fern','echeveria'],vines:['ivy','pothos'],color:'#ae955d'},
- {id:'snow',name:'雪落青庭',note:'雪白楼面衬着常绿叶片，枝条留下清瘦的线。',seasons:['winter'],trees:['banyan','maple'],flowers:['echeveria','grass'],leaves:['fern','ivy','echeveria'],vines:['ivy','pothos'],color:'#829eab'},
- {id:'silver',name:'冬日来信',note:'裸枝、银蓝莲座与草穗，把冬天留得轻一点。',seasons:['winter'],trees:['ginkgo','magnolia'],flowers:['echeveria','grass'],leaves:['fern','hosta','echeveria'],vines:['ivy','pothos'],color:'#9ca7b6'},
- {id:'green',name:'森间慢生',note:'树冠、蕨叶与垂藤叠出绿意，让建筑慢慢隐入自然。',seasons:['spring','summer','autumn','winter'],trees:['banyan','maple'],flowers:['fern','echeveria'],leaves:['fern','monstera','hosta'],vines:['ivy','pothos'],color:'#7c9273'}
-];
-export function generateGarden({seed,season='spring',excludeTheme}={}) {
- const initial=Number(seed)>>>0;let value=initial;
+import { normalizeSeason, seasonalLook } from './seasons.js';
+
+const TREES=['banyan','maple','ginkgo','sakura','magnolia'];
+const FLOWERS=['bougain','hydrangea','salvia','tulip','daisy','allium'];
+const LEAVES=['fern','monstera','hosta','grass','muhly','echeveria'];
+const VINES=['ivy','pothos','wisteria'];
+
+// Every seed samples new species, density, colony centres and individual positions.
+// There are no named themes or fixed planting slots; geometry only keeps roots on a slab.
+export function generateGarden({seed,season='spring'}={}) {
+ const initial=Number(seed)>>>0;let value=initial;season=normalizeSeason(season);
  const random=()=>{value=(Math.imul(value,1664525)+1013904223)>>>0;return value/4294967296;};
- const between=(a,b)=>a+(b-a)*random(),pick=a=>a[Math.floor(random()*a.length)];
- const themes=GARDEN_THEMES.filter(t=>t.seasons.includes(season)&&t.id!==excludeTheme);
- const theme=pick(themes.length?themes:GARDEN_THEMES.filter(t=>t.seasons.includes('spring')));
- const plants=[],mirror=random()<.5?-1:1;
- function add(species,x,z,level,scale){
-  x*=mirror;
-  if(Math.abs(x)>4.75||Math.abs(z)>3||level===1&&Math.abs(x)<1.55&&Math.abs(z)<1.12)return false;
-  if(plants.some(p=>p.level===level&&Math.hypot(p.x-x,p.z-z)<.25))return false;
-  plants.push({id:`draw-${initial.toString(36)}-${plants.length}`,species,x,z,level,scale,rotation:between(0,Math.PI*2)});return true;
+ const between=(a,b)=>a+(b-a)*random(),integer=(a,b)=>Math.floor(between(a,b+1));
+ const pick=a=>a[integer(0,a.length-1)];
+ function palette(ids,min){
+  const shuffled=[...ids];for(let i=shuffled.length-1;i>0;i--){const j=integer(0,i);[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
+  return shuffled.slice(0,integer(min,ids.length)).map(id=>({id,weight:between(.2,1.4)*(FLOWERS.includes(id)? .55+seasonalLook(id,'flower',season).fraction:1)}));
  }
+ function species(pool){let ticket=random()*pool.reduce((sum,p)=>sum+p.weight,0);for(const p of pool){ticket-=p.weight;if(ticket<=0)return p.id;}return pool.at(-1).id;}
+ const treePool=palette(TREES,2),flowerPool=palette(FLOWERS,3),leafPool=palette(LEAVES,3),vinePool=palette(VINES,1);
+ const plants=[],radii=[];
+ const onSlab=(x,z,level)=>Math.abs(x)<=4.72&&Math.abs(z)<=2.86&&!(level===1&&Math.abs(x)<1.6&&Math.abs(z)<1.16);
+ function point(level){for(let tries=0;tries<100;tries++){const p={x:between(-4.6,4.6),z:between(-2.75,2.75)};if(onSlab(p.x,p.z,level))return p;}return {x:-3,z:0};}
+ function add(id,x,z,level,scale){
+  if(!onSlab(x,z,level))return false;
+  const radius=TREES.includes(id)?.68*scale:VINES.includes(id)?.2:.17*scale;
+  if(plants.some((p,i)=>p.level===level&&Math.hypot(p.x-x,p.z-z)<radius+radii[i]))return false;
+  plants.push({id:`random-${initial.toString(36)}-${plants.length}`,species:id,x,z,level,scale,rotation:between(0,Math.PI*2)});radii.push(radius);return true;
+ }
+ const target=integer(40,80),lowerTarget=Math.round(target*between(.36,.6)),flowerShare=between(.25,.78);
  for(const level of [0,1]){
-  // Tall silhouettes sit at the rear; the central opening and front remain readable.
-  add(pick(theme.trees),between(-3.9,-3.1),between(-2.25,-1.75),level,between(.68,.86));
-  add(pick(theme.trees),between(2.65,3.65),between(-2.3,-1.8),level,between(.61,.8));
-  const anchors=[[-3.65,1.85],[3.45,1.8],[-3.8,-1.65],[2.7,-2.25]];
-  for(const [cx,cz] of anchors){
-   const accent=pick(theme.flowers),foliage=pick(theme.leaves),count=3+Math.floor(random()*2);
-   for(let i=0;i<count;i++){
-    for(let retry=0;retry<20;retry++){
-     const angle=between(0,Math.PI*2),radius=between(.28,.86);
-     if(add(i%3===0?foliage:accent,cx+Math.cos(angle)*radius,cz+Math.sin(angle)*radius,level,between(.6,.98)))break;
-    }
-   }
+  const treeCount=integer(1,3);
+  for(let i=0;i<treeCount;i++)for(let retry=0;retry<100;retry++){
+   const p=point(level),scale=between(.58,.98);
+   // Favour the far half for taller silhouettes without fixing their positions.
+   if(p.z>1&&random()<.7)continue;
+   if(plants.some(q=>q.level===level&&TREES.includes(q.species)&&Math.hypot(q.x-p.x,q.z-p.z)<2.4))continue;
+   if(add(species(treePool),p.x,p.z,level,scale))break;
   }
-  for(let i=0;i<3;i++)add(pick(theme.flowers),-1.8+i*1.7+between(-.2,.2),between(2.25,2.7),level,between(.6,.85));
+  const colonies=Array.from({length:integer(2,5)},()=>({...point(level),radius:between(.55,1.65),accent:species(flowerPool),foliage:species(leafPool)}));
+  const count=(level===0?lowerTarget:target-lowerTarget)-treeCount;
+  for(let i=0;i<count;i++)for(let retry=0;retry<80;retry++){
+   const colony=pick(colonies),angle=between(0,Math.PI*2),r=Math.sqrt(random())*colony.radius;
+   const p=random()<.78&&retry<45?{x:colony.x+Math.cos(angle)*r,z:colony.z+Math.sin(angle)*r}:point(level);
+   const flower=random()<flowerShare,id=random()<.62?(flower?colony.accent:colony.foliage):species(flower?flowerPool:leafPool);
+   if(add(id,p.x,p.z,level,between(.5,1.18)))break;
+  }
  }
- for(const x of [-4.3,-2.5,-.4,1.5,3.6])add(pick(theme.vines),x+between(-.18,.18),between(2.87,2.98),1,between(.65,.95));
- add(pick(theme.vines),-4.72,between(-.4,.5),1,between(.7,.95));
- return {seed:initial,serial:initial.toString(36).toUpperCase().padStart(7,'0'),theme:{...theme},season,plants};
+ // Trailing plants follow randomly chosen terrace edges, not a fixed row of slots.
+ for(let i=0,n=integer(3,10);i<n;i++)for(let retry=0;retry<60;retry++){
+  const edge=integer(0,3),x=edge<2?between(-4.65,4.65):(edge===2?-4.69:4.69),z=edge<2?(edge===0?-2.83:2.83):between(-2.7,2.7);
+  if(add(species(vinePool),x,z,1,between(.6,1.05)))break;
+ }
+ return {seed:initial,season,plants};
 }
