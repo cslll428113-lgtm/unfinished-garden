@@ -1,0 +1,31 @@
+import * as THREE from 'three';
+// CPU projection fallback for browsers without WebGL. Uses the same scene,
+// world coordinates, perspective camera and raycasting as the GPU renderer.
+export class CanvasRenderer {
+ constructor(){this.domElement=document.createElement('canvas');this.ctx=this.domElement.getContext('2d');this.shadowMap={};this.ratio=1;this.last=0;this.lastKey='';this.cache=new WeakMap();this.isCanvasRenderer=true;}
+ setPixelRatio(r){this.ratio=Math.min(r,1.25);}getPixelRatio(){return this.ratio;}
+ setSize(w,h,style=true){const ww=Math.round(w*this.ratio),hh=Math.round(h*this.ratio);if(this.domElement.width!==ww||this.domElement.height!==hh){this.domElement.width=ww;this.domElement.height=hh;this.lastKey='';}if(style){this.domElement.style.width=w+'px';this.domElement.style.height=h+'px';}}
+ render(scene,camera){scene.updateMatrixWorld();camera.updateMatrixWorld();camera.matrixWorldInverse.copy(camera.matrixWorld).invert();const W=this.domElement.width,H=this.domElement.height;if(!W||!H)return;
+  let key=camera.matrixWorld.elements.join(',')+'|'+camera.projectionMatrix.elements.join(',');scene.traverse(o=>{if(o.isObject3D)key+=o.visible+o.matrixWorld.elements.join(',')+(o.material?.opacity??'')+(o.intensity??'')+(o.isLineSegments?o.geometry.attributes.position.version:'');});
+  if(key===this.lastKey)return;this.lastKey=key;
+  const ctx=this.ctx;ctx.clearRect(0,0,W,H);const pv=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse),mat=new THREE.Matrix4(),inst=new THREE.Matrix4(),tmp=new THREE.Vector3(),col=new THREE.Color(),commands=[];
+  let dusk=false;scene.traverse(o=>{if(o.isDirectionalLight&&o.intensity>1&&o.intensity<3)dusk=true;});
+  const project=(x,y,z,m)=>{tmp.set(x,y,z).applyMatrix4(m);let depth=-tmp.clone().applyMatrix4(camera.matrixWorldInverse).z;tmp.applyMatrix4(pv);return [(tmp.x*.5+.5)*W,(-tmp.y*.5+.5)*H,depth];};
+  const color=(c,shade=1)=>{let sr=c.clone().convertLinearToSRGB();return `rgb(${Math.min(255,Math.round(sr.r*255*shade))},${Math.min(255,Math.round(sr.g*255*shade))},${Math.min(255,Math.round(sr.b*255*shade))})`;};
+  function poly(points,m,c,shade=1,alpha=1,stroke=false,expand=false){let ps=points.map(p=>project(p[0],p[1],p[2],m)),d=ps.reduce((a,p)=>a+p[2],0)/ps.length;if(d<=.1||d>90)return;if(ps.every(p=>p[0]<-100)||ps.every(p=>p[0]>W+100)||ps.every(p=>p[1]<-100)||ps.every(p=>p[1]>H+100))return;commands.push({ps,d,color:color(c,shade),alpha,stroke,expand});}
+  const visit=o=>{if(!o.visible)return;if(o.userData.id){let pts=[];for(let j=0;j<20;j++){let a=j/20*Math.PI*2;pts.push([Math.cos(a)*.65,.005,Math.sin(a)*.4]);}poly(pts,o.matrixWorld,new THREE.Color(0x657954),1,.14);}if(o.isMesh){let geo=o.geometry,material=Array.isArray(o.material)?o.material[0]:o.material;
+    if(o.isInstancedMesh){for(let i=0;i<o.count;i++){o.getMatrixAt(i,inst);mat.multiplyMatrices(o.matrixWorld,inst);if(o.instanceColor)o.getColorAt(i,col);else col.copy(material.color);const type=geo.type;
+     if(type==='CylinderGeometry'){let a=project(0,-.5,0,mat),b=project(0,.5,0,mat),c=project(1,0,0,mat),center=project(0,0,0,mat);commands.push({ps:[a,b],d:(a[2]+b[2])/2,color:color(col,.85),alpha:material.opacity,width:Math.max(.6,Math.hypot(c[0]-center[0],c[1]-center[1])*2),stroke:true});}
+     else if(type==='IcosahedronGeometry'){poly([[0,1,0],[.85,.4,.2],[.85,-.4,0],[0,-1,0],[-.85,-.4,-.2],[-.85,.4,0]],mat,col,dusk?.95:1.03,material.opacity);}
+     else{poly([[0,0,0],[-.32,.22,.04],[-.48,.5,.06],[-.3,.78,.04],[0,1,0],[.3,.78,.04],[.48,.5,.06],[.32,.22,.04]],mat,col,dusk?.91:1,material.opacity);}
+    }}else if(geo.type==='BoxGeometry'){let p=geo.parameters,x=p.width/2,y=p.height/2,z=p.depth/2;const faces=[[[x,y,z],[-x,y,z],[-x,y,-z],[x,y,-z]],[[x,-y,z],[x,y,z],[x,y,-z],[x,-y,-z]],[[-x,-y,-z],[-x,y,-z],[-x,y,z],[-x,-y,z]],[[x,-y,z],[-x,-y,z],[-x,y,z],[x,y,z]],[[-x,-y,-z],[x,-y,-z],[x,y,-z],[-x,y,-z]],[[x,-y,-z],[-x,-y,-z],[-x,-y,z],[x,-y,z]]];faces.forEach((f,i)=>{const shade=[1.04,.86,.95,.92,.81,.8][i],u=Math.hypot(...f[1].map((q,j)=>q-f[0][j])),vv=Math.hypot(...f[3].map((q,j)=>q-f[0][j])),nx=Math.ceil(u/.6),nz=Math.ceil(vv/.6);const at=(tx,tz)=>f[0].map((q,j)=>q+(f[1][j]-q)*tx+(f[3][j]-q)*tz);for(let ix=0;ix<nx;ix++)for(let iz=0;iz<nz;iz++)poly([at(ix/nx,iz/nz),at((ix+1)/nx,iz/nz),at((ix+1)/nx,(iz+1)/nz),at(ix/nx,(iz+1)/nz)],o.matrixWorld,material.color,shade,material.opacity,false,true);});}
+    else if(geo.type==='CircleGeometry'||geo.type==='RingGeometry'){let points=[],radius=geo.parameters.radius??geo.parameters.outerRadius;if(radius>10)return;for(let i=0;i<32;i++){let a=i/32*Math.PI*2;points.push([Math.cos(a)*radius,Math.sin(a)*radius,0]);}poly(points,o.matrixWorld,material.color,1,material.opacity,geo.type==='RingGeometry');}
+   }else if(o.isLine&&!o.isLineSegments){let p=o.geometry.attributes.position,pts=[];for(let i=0;i<p.count;i++)pts.push([p.getX(i),p.getY(i),p.getZ(i)]);poly(pts,o.matrixWorld,o.material.color,1,o.material.opacity,true);}
+   else if(o.isLineSegments){let p=o.geometry.attributes.position;for(let i=0;i<p.count;i+=2)poly([[p.getX(i),p.getY(i),p.getZ(i)],[p.getX(i+1),p.getY(i+1),p.getZ(i+1)]],o.matrixWorld,o.material.color,1,o.material.opacity,true);}
+   for(const child of o.children)visit(child);
+  };visit(scene);
+  commands.sort((a,b)=>b.d-a.d);
+  for(const c of commands){ctx.globalAlpha=c.alpha??1;ctx.beginPath();let ps=c.ps;if(c.expand){let cx=ps.reduce((a,p)=>a+p[0],0)/ps.length,cy=ps.reduce((a,p)=>a+p[1],0)/ps.length;ps=ps.map(p=>{let dx=p[0]-cx,dy=p[1]-cy,l=Math.hypot(dx,dy)||1;return [p[0]+dx/l*.45,p[1]+dy/l*.45];});}ps.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));if(c.stroke){ctx.strokeStyle=c.color;ctx.lineWidth=c.width??.7*this.ratio;ctx.stroke();}else{ctx.closePath();ctx.fillStyle=c.color;ctx.fill();}}
+  ctx.globalAlpha=1;
+ }
+}
