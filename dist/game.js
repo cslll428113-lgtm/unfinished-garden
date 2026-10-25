@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CanvasRenderer } from './canvas-renderer.js';
+import { PHOTO_LOOKS, normalizeLook, normalizeStrength, photoLook, paintPhoto } from './photo-looks.js';
 import { generateGarden } from './random-garden.js';
 import { SEASONS, DECIDUOUS, normalizeSeason, seasonalLook } from './seasons.js';
 
@@ -37,16 +38,16 @@ function uid(){return 'p'+Date.now().toString(36)+Math.random().toString(36).sli
 const v=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 let renderer;
 try{const surface=document.createElement('canvas'),context=surface.getContext('webgl2',{antialias:true,alpha:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});renderer=context?new THREE.WebGLRenderer({canvas:surface,context,antialias:true,alpha:true,preserveDrawingBuffer:true}):new CanvasRenderer();}catch(e){renderer=new CanvasRenderer();}
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.22;
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
 $('viewport').appendChild(renderer.domElement);
 const scene=new THREE.Scene();scene.fog=new THREE.Fog(0xe9eddf,38,75);
 const camera=new THREE.PerspectiveCamera(33,1,.1,100);camera.position.set(15,12,17);
 const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,1.9,0);controls.enableDamping=true;controls.dampingFactor=.08;controls.minDistance=8;controls.maxDistance=34;controls.minPolarAngle=.15;controls.maxPolarAngle=Math.PI*.485;controls.enablePan=true;controls.panSpeed=.6;controls.rotateSpeed=.7;controls.zoomSpeed=.7;
 const ambient=new THREE.HemisphereLight(0xffffec,0x8f9f86,2.1);scene.add(ambient);
-const sun=new THREE.DirectionalLight(0xfff5d5,3.6);sun.position.set(-8,15,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:45});sun.shadow.normalBias=.035;sun.shadow.bias=-.00015;sun.shadow.radius=3;scene.add(sun);
+const sun=new THREE.DirectionalLight(0xfff5d5,3.6);sun.position.set(-8,15,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:45});sun.shadow.normalBias=.02;sun.shadow.bias=-.00015;sun.shadow.radius=2.5;scene.add(sun);
 const fill=new THREE.DirectionalLight(0xd9e9d7,.7);fill.position.set(8,6,-8);scene.add(fill);
-function concreteTexture(){const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle='#dddccf';ctx.fillRect(0,0,256,256);for(let i=0;i<14000;i++){const n=Math.floor(range(100,200));ctx.fillStyle=`rgba(${n},${n},${n-10},${range(.02,.1)})`;ctx.fillRect(rand()*256,rand()*256,rand()*2+.5,rand()*2+.5);}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(2,2);t.colorSpace=THREE.SRGBColorSpace;return t;}
-const concrete=new THREE.MeshStandardMaterial({color:0xe2e0d1,map:concreteTexture(),roughness:1});
+function concreteTexture(){const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle='#e2e3dd';ctx.fillRect(0,0,256,256);for(let i=0;i<14000;i++){const n=Math.floor(range(100,200));ctx.fillStyle=`rgba(${n},${n},${n-10},${range(.02,.1)})`;ctx.fillRect(rand()*256,rand()*256,rand()*2+.5,rand()*2+.5);}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(2,2);t.colorSpace=THREE.SRGBColorSpace;return t;}
+const concrete=new THREE.MeshStandardMaterial({color:0xe5e6de,map:concreteTexture(),roughness:1});
 const concreteDark=new THREE.MeshStandardMaterial({color:0xb5b9a4,roughness:1});const stoneMat=new THREE.MeshStandardMaterial({color:0xb9bba8,roughness:1});const mossMat=new THREE.MeshStandardMaterial({color:0x919a6b,roughness:1});const woodMat=new THREE.MeshStandardMaterial({color:0x857b60,roughness:1});
 const architecture=new THREE.Group(),upper=new THREE.Group();scene.add(architecture);architecture.add(upper);
 const slabs=[];
@@ -193,7 +194,7 @@ function demo(){const data=[
  ['sakura',-3.6,-1.9,1,.85],['magnolia',2.7,-1.9,1,.85],['bougain',4.2,-2.4,1,.9],['bougain',4.1,2.4,1,.8],['hydrangea',-3.5,1.8,1,.8],['hydrangea',-2.6,2.4,1,.7],['allium',-3.6,-.1,1,.8],['salvia',-4.3,-.35,1,.65],['fern',-4.2,-2.2,1,.85],['hosta',-2.4,-2.55,1,.9],['muhly',1.2,-2.5,1,.9],['fern',3.6,-1.4,1,.75],['monstera',2.6,1.65,1,.65],['hosta',3.25,2.5,1,.85],['ivy',-4.5,2.95,1,.95],['wisteria',-3.65,3,1,.75],['pothos',-.6,3.0,1,.95],['ivy',.1,3,1,.8],['pothos',4.8,.5,1,.8],['ivy',-4.95,-.35,1,.8],['tulip',.5,2.3,1,.9],['daisy',-.2,2.1,1,.9],['echeveria',2.1,2.7,1,.95]
  ];state={plants:data.map((d,i)=>({id:uid()+i,species:d[0],x:d[1],z:d[2],level:d[3],scale:d[4],rotation:i*2.399})),growth:1,season:'spring',light:'day'};}
 try{const saved=JSON.parse(localStorage.getItem(KEY));if(saved&&Array.isArray(saved.plants)&&saved.plants.every(p=>speciesMap[p.species]&&Number.isFinite(p.x)&&Number.isFinite(p.z))){state=saved;}else{demo();$('welcome').hidden=false;}}catch(e){demo();$('welcome').hidden=false;}
-state.season=normalizeSeason(state.season);
+state.season=normalizeSeason(state.season);state.light=normalizeLook(state.light);state.photoStrength=normalizeStrength(state.photoStrength);
 renderPlants();
 
 // A specimen portrait for each card, rendered from the very same 3D model.
@@ -225,26 +226,41 @@ $('rotateLeft').onclick=()=>rotateView(-Math.PI/6);$('rotateRight').onclick=()=>
 $('homeView').onclick=()=>{camera.position.set(15,12,17);controls.target.set(0,1.9,0);controls.update();};
 function zoom(f){let off=camera.position.clone().sub(controls.target).multiplyScalar(f);off.setLength(THREE.MathUtils.clamp(off.length(),8,34));camera.position.copy(controls.target.clone().add(off));controls.update();}
 $('zoomIn').onclick=()=>zoom(.85);$('zoomOut').onclick=()=>zoom(1.18);
+let currentLook;
 function setLight(type){
- const dusk=type==='dusk',palette=SEASONS[state.season],winterDusk=dusk&&state.season==='winter';
- state.light=type;document.body.dataset.light=type;
- scene.userData.dusk=dusk;scene.userData.winterDusk=winterDusk;
- scene.userData.backdropColor=winterDusk?'#b5c3d5':palette.paper;
- sun.color.setHex(winterDusk?0xa9c8f2:dusk?0xffcc91:palette.sun);
- sun.intensity=winterDusk?1.8:dusk?2.4:3.6;
- sun.position.set(dusk?-12:-8,dusk?7:15,8);
- ambient.intensity=winterDusk?1.55:dusk?1.3:2.1;
- ambient.color.setHex(winterDusk?0xa8c1e5:dusk?0xc3cddd:palette.sky);
- ambient.groundColor.setHex(winterDusk?0x697e9a:0x8f9f86);
- fill.color.setHex(winterDusk?0xb7d0f1:0xd9e9d7);fill.intensity=winterDusk?.9:.7;
- ground.material.color.setHex(winterDusk?0xaabbd0:palette.ground).multiplyScalar(dusk&&!winterDusk?.91:1);
- snowMaterial.color.setHex(winterDusk?0xf1f5ff:0xf4f7f7);
- scene.fog.color.set(scene.userData.backdropColor);
- renderer.toneMappingExposure=winterDusk?1.08:1.22;
- $('light').innerHTML=dusk?'☾ <span>暮色</span>':'☀ <span>午后</span>';
+ state.light=normalizeLook(type);state.photoStrength=state.light==='day'?1:normalizeStrength(state.photoStrength);
+ currentLook=photoLook(state.season,state.light,state.photoStrength);const look=currentLook;
+ document.body.dataset.light=state.light;
+ scene.userData.photoLook=look;scene.userData.backdropColor=look.bottom;
+ sun.color.set(look.sun);sun.intensity=look.sunPower;sun.position.set(...look.position);
+ ambient.color.set(look.sky);ambient.intensity=look.ambient;ambient.groundColor.set(look.bounce);
+ fill.color.set(look.fill);fill.intensity=look.fillPower;
+ ground.material.color.set(look.ground);snowMaterial.color.setHex(0xf0f4f7);
+ scene.fog.color.set(look.bottom);scene.fog.near=look.fogNear;scene.fog.far=look.fogFar;
+ renderer.toneMappingExposure=look.exposure;
+ renderer.domElement.style.filter=look.filter;
+ $('viewport').style.background=`linear-gradient(180deg,${look.top},${look.bottom})`;
+ $('photoVignette').style.background=`radial-gradient(circle farthest-corner at center,rgba(29,39,47,0) 55%,${look.vignetteColor} 100%)`;
+ $('light').innerHTML=`◈ <span>${look.name}</span>`;
+ $('photoStyleName').textContent=look.name;$('photoStyleNote').textContent=look.note;
+ $('photoStrength').value=Math.round(state.photoStrength*100);$('photoStrengthValue').textContent=Math.round(state.photoStrength*100)+'%';
+ $('photoStrength').disabled=state.light==='day';
+ document.querySelectorAll('[data-photo-look]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.photoLook===state.light)));
 }
+for(const [id,look] of Object.entries(PHOTO_LOOKS)){
+ const button=document.createElement('button');button.className='photo-look';button.dataset.photoLook=id;
+ button.setAttribute('aria-label',look.name+'滤镜');button.setAttribute('aria-pressed','false');
+ button.innerHTML=`<span class="look-swatch" style="--swatch-top:${look.swatch[0]};--swatch-bottom:${look.swatch[1]}"><i>${look.icon}</i><span></span></span><b>${look.name}</b>`;
+ button.onclick=()=>{if(state.light===id)return;checkpoint();setLight(id);save();updateUI();};$('photoLooks').appendChild(button);
+}
+function photoPanel(open){$('photoPanel').hidden=!open;$('light').setAttribute('aria-expanded',String(open));}
+$('light').onclick=()=>photoPanel($('photoPanel').hidden);
+$('closePhoto').onclick=()=>photoPanel(false);
+let strengthCheckpoint=false;
+$('photoStrength').addEventListener('input',()=>{if(!strengthCheckpoint){checkpoint();strengthCheckpoint=true;}state.photoStrength=+$('photoStrength').value/100;setLight(state.light);updateUI();});
+$('photoStrength').addEventListener('change',()=>{strengthCheckpoint=false;save();});
+$('resetPhoto').onclick=()=>{checkpoint();state.photoStrength=1;setLight('day');save();updateUI();toast('已恢复晴日原色');};
 setLight(state.light);
-$('light').onclick=()=>{setLight(state.light==='day'?'dusk':'day');save();};
 $('grow').onclick=()=>{if(state.growth>=1.3){toast('枝叶已充分舒展；仍可单独调整每株大小');return;}checkpoint();state.growth=Math.min(1.3,state.growth+.08);state.plants.forEach(p=>applyTransform(p,plantMeshes.get(p.id)));finish();toast('枝叶又舒展了一点');};
 const rainN=500,rainPositions=new Float32Array(rainN*6);for(let i=0;i<rainN;i++){let x=range(-8,8),y=range(0,12),z=range(-6,6);rainPositions.set([x,y,z,x-.035,y-.23,z],i*6);}const rainGeo=new THREE.BufferGeometry();rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPositions,3));const rainLines=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:0x90aba7,transparent:true,opacity:.45,depthWrite:false}));rainLines.visible=false;scene.add(rainLines);
 // Weather is an explicit toggle, independent of frame rate and garden undo.
@@ -294,7 +310,7 @@ applySeason();
 let gardenDraw=null,lastDrawTheme=null;
 function gardenPortrait(plants){
  const draft=new THREE.Group();
- for(const p of plants){const g=plantTemplate(p.species).clone(true);g.position.set(p.x,p.level*3.1+.015,p.z);g.rotation.y=p.rotation;g.scale.setScalar(p.scale);draft.add(g);}
+ for(const p of plants){const g=plantTemplate(p.species).clone(true);g.userData.id=p.id;g.position.set(p.x,p.level*3.1+.015,p.z);g.rotation.y=p.rotation;g.scale.setScalar(p.scale);draft.add(g);}
  const hidden=[plantsRoot,litterGround,litterUpper,ring,previewRing,rainLines,...(ghost?[ghost]:[])];
  const visibility=hidden.map(o=>o.visible),upperVisible=upper.visible,ratio=renderer.getPixelRatio();
  const cam=new THREE.PerspectiveCamera(33,1.6,.1,100);cam.position.set(15,12,17);cam.lookAt(0,1.9,0);
@@ -303,7 +319,7 @@ function gardenPortrait(plants){
   hidden.forEach(o=>o.visible=false);upper.visible=true;
   renderer.setPixelRatio(1);renderer.setSize(800,500,false);renderer.render(scene,cam);
   const image=document.createElement('canvas');image.width=800;image.height=500;const ctx=image.getContext('2d');
-  ctx.fillStyle=scene.userData.backdropColor;ctx.fillRect(0,0,800,500);ctx.drawImage(renderer.domElement,0,0);
+  paintPhoto(ctx,renderer.domElement,800,500,currentLook);
   return image.toDataURL('image/jpeg',.9);
  }finally{
   scene.remove(draft);draft.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
@@ -333,7 +349,19 @@ $('keepGarden').onclick=()=>{
  $('welcome').hidden=true;$('drawDialog').close();toast('已收下「'+chosen.theme.name+'」· 可继续编辑或撤销');
 };
 $('about').onclick=()=>$('aboutDialog').showModal();$('closeAbout').onclick=()=>$('aboutDialog').close();$('aboutDialog').addEventListener('click',e=>{if(e.target===$('aboutDialog')){let r=$('aboutDialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('aboutDialog').close();}});
-$('capture').onclick=()=>{let wasRing=ring.visible,wasGhost=ghost?.visible;ring.visible=false;previewRing.visible=false;if(ghost)ghost.visible=false;renderer.render(scene,camera);const c=document.createElement('canvas');c.width=renderer.domElement.width;c.height=renderer.domElement.height+110;let ctx=c.getContext('2d');ctx.fillStyle=scene.userData.backdropColor;ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(renderer.domElement,0,0);ctx.fillStyle='#344a3b';ctx.font='28px SimSun,serif';ctx.fillText('未完之境 · '+SEASONS[state.season].title,35,c.height-60);ctx.font='13px sans-serif';ctx.fillStyle='#7d8972';ctx.fillText(`${state.plants.length} 株植物 / ${new Set(state.plants.map(p=>p.species)).size} 种生机    人停下的地方，自然继续。`,35,c.height-30);const a=document.createElement('a');a.download='未完之境-'+SEASONS[state.season].name+'日花园.png';a.href=c.toDataURL('image/png');a.click();ring.visible=wasRing;if(ghost)ghost.visible=wasGhost;toast('风景已保存为 PNG 图片');};
-window.addEventListener('keydown',e=>{if(e.target.matches('input,textarea')||$('aboutDialog').open||$('drawDialog').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(e.key==='Escape')setMode('view');else if(e.key.toLowerCase()==='v')setMode('select');else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}});
+$('capture').onclick=()=>{
+ const wasRing=ring.visible,wasPreview=previewRing.visible,wasGhost=ghost?.visible;
+ try{
+  ring.visible=false;previewRing.visible=false;if(ghost)ghost.visible=false;renderer.render(scene,camera);
+  const c=document.createElement('canvas'),w=renderer.domElement.width,h=renderer.domElement.height;
+  c.width=w;c.height=h+110;const ctx=c.getContext('2d');paintPhoto(ctx,renderer.domElement,w,h,currentLook);
+  ctx.fillStyle='#f5f4ed';ctx.fillRect(0,h,w,110);ctx.fillStyle='#344a3b';ctx.font='28px SimSun,serif';
+  ctx.fillText('未完之境 · '+SEASONS[state.season].title+' / '+currentLook.name,35,h+50);
+  ctx.font='13px sans-serif';ctx.fillStyle='#7d8972';ctx.fillText(`${state.plants.length} 株植物 / ${new Set(state.plants.map(p=>p.species)).size} 种生机    人停下的地方，自然继续。`,35,h+80);
+  const a=document.createElement('a');a.download=`未完之境-${SEASONS[state.season].name}日花园-${currentLook.name}.png`;a.href=c.toDataURL('image/png');a.click();
+  toast('已保存 PNG · '+currentLook.name+'光影已保留');
+ }finally{ring.visible=wasRing;previewRing.visible=wasPreview;if(ghost)ghost.visible=wasGhost;}
+};
+window.addEventListener('keydown',e=>{if(e.target.matches('input,textarea')||$('aboutDialog').open||$('drawDialog').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(e.key==='Escape'){photoPanel(false);setMode('view');}else if(e.key.toLowerCase()==='v')setMode('select');else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}});
 let last=performance.now();function animate(now){requestAnimationFrame(animate);let dt=Math.min((now-last)/1000,.05);last=now;controls.update();if(isRaining){for(let i=0;i<rainN;i++){let n=i*6,snow=state.season==='winter',speed=snow?.8:6;rainPositions[n+1]-=dt*speed;rainPositions[n+4]-=dt*speed;if(snow){const drift=Math.sin(now*.001+i)*dt*.18;rainPositions[n]+=drift;rainPositions[n+3]+=drift;}if(rainPositions[n+1]<-.2){rainPositions[n+1]=12;rainPositions[n+4]=12-(snow?.035:.23);}}rainGeo.attributes.position.needsUpdate=true;}renderer.render(scene,camera);}
 requestAnimationFrame(animate);$('loading').style.opacity='0';setTimeout(()=>$('loading').hidden=true,650);save();updateUI();
