@@ -6,7 +6,7 @@ export class CanvasRenderer {
  setPixelRatio(r){this.ratio=Math.min(r,1.25);}getPixelRatio(){return this.ratio;}
  setSize(w,h,style=true){const ww=Math.round(w*this.ratio),hh=Math.round(h*this.ratio);if(this.domElement.width!==ww||this.domElement.height!==hh){this.domElement.width=ww;this.domElement.height=hh;this.lastKey='';}if(style){this.domElement.style.width=w+'px';this.domElement.style.height=h+'px';}}
  render(scene,camera){scene.updateMatrixWorld();camera.updateMatrixWorld();camera.matrixWorldInverse.copy(camera.matrixWorld).invert();const W=this.domElement.width,H=this.domElement.height;if(!W||!H)return;
-  let key=camera.matrixWorld.elements.join(',')+'|'+camera.projectionMatrix.elements.join(',');scene.traverse(o=>{if(o.isObject3D)key+=o.visible+o.matrixWorld.elements.join(',')+(o.material?.opacity??'')+(o.intensity??'')+(o.isLineSegments?o.geometry.attributes.position.version:'');});
+  let key=camera.matrixWorld.elements.join(',')+'|'+camera.projectionMatrix.elements.join(',');scene.traverse(o=>{if(o.isObject3D)key+=o.visible+o.matrixWorld.elements.join(',')+(o.material?.opacity??'')+(o.intensity??'')+(o.geometry?.uuid??'')+(o.count??'')+(o.instanceColor?.version??'')+(o.material?.color?.getHexString()??'')+(o.isLineSegments?o.geometry.attributes.position.version:'');});
   if(key===this.lastKey)return;this.lastKey=key;
   const ctx=this.ctx;ctx.clearRect(0,0,W,H);const pv=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse),mat=new THREE.Matrix4(),inst=new THREE.Matrix4(),tmp=new THREE.Vector3(),col=new THREE.Color(),commands=[];
   let dusk=false;scene.traverse(o=>{if(o.isDirectionalLight&&o.intensity>1&&o.intensity<3)dusk=true;});

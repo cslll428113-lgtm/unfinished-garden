@@ -4,7 +4,15 @@
   "private": true,
   "description": "未完之境：超现实花园主题的三维自由种植互动作品",
   "type": "module",
-  "scripts": { "start": "node scripts/serve.mjs", "dev": "node scripts/serve.mjs", "check": "node --check dist/game.js && node --check dist/canvas-renderer.js && node --check scripts/serve.mjs" },
-  "engines": { "node": ">=18" },
-  "dependencies": { "three": "0.180.0" }
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "dev": "node scripts/serve.mjs",
+    "check": "node --check dist/game.js && node --check dist/canvas-renderer.js && node --check dist/seasons.js && node --check scripts/serve.mjs && node --test tests/seasons.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  }
 }
