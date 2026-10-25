@@ -235,7 +235,7 @@ function setLight(type){
  sun.color.set(look.sun);sun.intensity=look.sunPower;sun.position.set(...look.position);
  ambient.color.set(look.sky);ambient.intensity=look.ambient;ambient.groundColor.set(look.bounce);
  fill.color.set(look.fill);fill.intensity=look.fillPower;
- ground.material.color.set(look.ground);snowMaterial.color.setHex(0xf0f4f7);
+ concrete.color.set(look.concrete);ground.material.color.set(look.ground);snowMaterial.color.setHex(0xf0f4f7);
  scene.fog.color.set(look.bottom);scene.fog.near=look.fogNear;scene.fog.far=look.fogFar;
  renderer.toneMappingExposure=look.exposure;
  renderer.domElement.style.filter=look.filter;

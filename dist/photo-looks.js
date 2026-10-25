@@ -14,15 +14,17 @@ const hex=n=>'#'+n.toString(16).padStart(6,'0');
 function mixColor(a,b,t){a=parseInt(a.slice(1),16);b=parseInt(b.slice(1),16);return '#'+[16,8,0].map(shift=>Math.round(((a>>shift)&255)*(1-t)+((b>>shift)&255)*t).toString(16).padStart(2,'0')).join('');}
 export function photoLook(season,type='day',strength=1){
  season=normalizeSeason(season);type=normalizeLook(type);const t=normalizeStrength(strength),palette=SEASONS[season];
- const base={sun:mixColor(hex(palette.sun),'#fff6e9',.6),sky:mixColor(hex(palette.sky),'#e6edf1',.65),bounce:'#89968d',fill:'#d4e0e8',sunPower:2.5,ambient:1.3,fillPower:.65,position:[-8,12,7],exposure:1,top:mixColor(palette.paper,'#f3f4ef',.6),bottom:mixColor(palette.paper,'#c4cfc7',.45),ground:mixColor(hex(palette.ground),'#cfd6cb',.45),fogNear:34,fogFar:75,saturation:1.03,contrast:1.035,brightness:1,sepia:0,vignette:.055,cpuTint:[1,1,1],cpuBrightness:1};
- let selected={...base,...PHOTO_LOOKS[type]};
+ // Keep the original airy daylight as the unfiltered baseline.
+ const daylightBackground={spring:['#faf4e8','#e9ebdc'],summer:['#f3f3e9','#e6ebde'],autumn:['#faf0dc','#e8ddc8'],winter:['#f5f7f6','#dce6eb']}[season];
+ const base={sun:hex(palette.sun),sky:hex(palette.sky),bounce:'#8f9f86',fill:'#d9e9d7',sunPower:3.6,ambient:2.1,fillPower:.7,position:[-8,15,8],exposure:1.22,top:daylightBackground[0],bottom:daylightBackground[1],ground:hex(palette.ground),concrete:'#e2e0d1',fogNear:34,fogFar:75,saturation:1,contrast:1,brightness:1,sepia:0,vignette:0,cpuTint:[1,1,1],cpuBrightness:1,cpuDirectionalMix:0};
+ let selected={...base,...PHOTO_LOOKS[type],...(type==='day'?{}:{concrete:'#e5e6de',cpuDirectionalMix:1})};
  if(season==='winter'&&type!=='day'){
   // Even warm styles retain silver-blue snow, ground and ambient bounce.
   selected={...selected,sun:mixColor(selected.sun,'#d5e6ff',.6),sky:mixColor(selected.sky,'#c4d9f1',.55),ground:mixColor(selected.ground,'#becddd',.65),top:mixColor(selected.top,'#dce5ed',.5),bottom:mixColor(selected.bottom,'#aebed2',.5),sepia:selected.sepia*.3,cpuTint:selected.cpuTint.map((n,i)=>n*.5+[.91,.97,1.06][i]*.5)};
  }
  const result={type,name:PHOTO_LOOKS[type].name,note:PHOTO_LOOKS[type].note,strength:t};
- for(const key of ['sun','sky','bounce','fill','top','bottom','ground'])result[key]=mixColor(base[key],selected[key],t);
- for(const key of ['sunPower','ambient','fillPower','exposure','fogNear','fogFar','saturation','contrast','brightness','sepia','vignette','cpuBrightness'])result[key]=base[key]+(selected[key]-base[key])*t;
+ for(const key of ['sun','sky','bounce','fill','top','bottom','ground','concrete'])result[key]=mixColor(base[key],selected[key],t);
+ for(const key of ['sunPower','ambient','fillPower','exposure','fogNear','fogFar','saturation','contrast','brightness','sepia','vignette','cpuBrightness','cpuDirectionalMix'])result[key]=base[key]+(selected[key]-base[key])*t;
  for(const key of ['position','cpuTint'])result[key]=base[key].map((n,i)=>n+(selected[key][i]-n)*t);
  if(season==='winter'&&type==='dusk')result.note='冬日暮光 · 银蓝雪面与微暖的天色';
  result.filter=`saturate(${result.saturation}) contrast(${result.contrast}) brightness(${result.brightness}) sepia(${result.sepia})`;
