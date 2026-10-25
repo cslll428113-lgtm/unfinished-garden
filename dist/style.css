@@ -14,3 +14,6 @@ body[data-season="winter"] .stage{background:radial-gradient(ellipse at 50% 45%,
 @media(max-height:850px) and (min-width:1051px){.season-panel{top:257px}}
 @media(max-width:1050px){.season-panel{top:221px;left:22px;width:177px}.season-panel p{display:none}}
 @media(max-width:700px){.season-panel{top:207px;left:20px;width:158px;padding:9px}.season-heading span{font-size:5px;letter-spacing:.5px}.season-heading b{font-size:12px}.season-options{margin-top:7px}.season-options button{padding:6px 0;font-size:12px}}
+
+body[data-season="winter"][data-light="dusk"] .stage{background:radial-gradient(ellipse at 50% 38%,#d2ddec 0%,#a8b8ce 100%)}
+body[data-season="winter"][data-light="dusk"] .scene-title p,body[data-season="winter"][data-light="dusk"] .scene-hint,body[data-season="winter"][data-light="dusk"] .scene-meta,body[data-season="winter"][data-light="dusk"] .scene-title .eyebrow{color:#5d7083}

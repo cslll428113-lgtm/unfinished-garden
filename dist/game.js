@@ -223,7 +223,24 @@ $('rotateLeft').onclick=()=>rotateView(-Math.PI/6);$('rotateRight').onclick=()=>
 $('homeView').onclick=()=>{camera.position.set(15,12,17);controls.target.set(0,1.9,0);controls.update();};
 function zoom(f){let off=camera.position.clone().sub(controls.target).multiplyScalar(f);off.setLength(THREE.MathUtils.clamp(off.length(),8,34));camera.position.copy(controls.target.clone().add(off));controls.update();}
 $('zoomIn').onclick=()=>zoom(.85);$('zoomOut').onclick=()=>zoom(1.18);
-function setLight(type){const dusk=type==='dusk',palette=SEASONS[state.season];state.light=type;sun.color.setHex(dusk?0xffcc91:palette.sun);sun.intensity=dusk?2.4:3.6;sun.position.set(dusk?-12:-8,dusk?7:15,8);ambient.intensity=dusk?1.3:2.1;ambient.color.setHex(dusk?0xc3cddd:palette.sky);ground.material.color.setHex(palette.ground).multiplyScalar(dusk?.91:1);$('light').innerHTML=dusk?'☾ <span>暮色</span>':'☀ <span>午后</span>';}
+function setLight(type){
+ const dusk=type==='dusk',palette=SEASONS[state.season],winterDusk=dusk&&state.season==='winter';
+ state.light=type;document.body.dataset.light=type;
+ scene.userData.dusk=dusk;scene.userData.winterDusk=winterDusk;
+ scene.userData.backdropColor=winterDusk?'#b5c3d5':palette.paper;
+ sun.color.setHex(winterDusk?0xa9c8f2:dusk?0xffcc91:palette.sun);
+ sun.intensity=winterDusk?1.8:dusk?2.4:3.6;
+ sun.position.set(dusk?-12:-8,dusk?7:15,8);
+ ambient.intensity=winterDusk?1.55:dusk?1.3:2.1;
+ ambient.color.setHex(winterDusk?0xa8c1e5:dusk?0xc3cddd:palette.sky);
+ ambient.groundColor.setHex(winterDusk?0x697e9a:0x8f9f86);
+ fill.color.setHex(winterDusk?0xb7d0f1:0xd9e9d7);fill.intensity=winterDusk?.9:.7;
+ ground.material.color.setHex(winterDusk?0xaabbd0:palette.ground).multiplyScalar(dusk&&!winterDusk?.91:1);
+ snowMaterial.color.setHex(winterDusk?0xf1f5ff:0xf4f7f7);
+ scene.fog.color.set(scene.userData.backdropColor);
+ renderer.toneMappingExposure=winterDusk?1.08:1.22;
+ $('light').innerHTML=dusk?'☾ <span>暮色</span>':'☀ <span>午后</span>';
+}
 setLight(state.light);
 $('light').onclick=()=>{setLight(state.light==='day'?'dusk':'day');save();};
 $('grow').onclick=()=>{if(state.growth>=1.3){toast('枝叶已充分舒展；仍可单独调整每株大小');return;}checkpoint();state.growth=Math.min(1.3,state.growth+.08);state.plants.forEach(p=>applyTransform(p,plantMeshes.get(p.id)));finish();toast('枝叶又舒展了一点');};
@@ -272,7 +289,7 @@ document.querySelectorAll('[data-season-choice]').forEach(button=>button.onclick
 });
 applySeason();
 $('about').onclick=()=>$('aboutDialog').showModal();$('closeAbout').onclick=()=>$('aboutDialog').close();$('aboutDialog').addEventListener('click',e=>{if(e.target===$('aboutDialog')){let r=$('aboutDialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('aboutDialog').close();}});
-$('capture').onclick=()=>{let wasRing=ring.visible,wasGhost=ghost?.visible;ring.visible=false;previewRing.visible=false;if(ghost)ghost.visible=false;renderer.render(scene,camera);const c=document.createElement('canvas');c.width=renderer.domElement.width;c.height=renderer.domElement.height+110;let ctx=c.getContext('2d');ctx.fillStyle=SEASONS[state.season].paper;ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(renderer.domElement,0,0);ctx.fillStyle='#344a3b';ctx.font='28px SimSun,serif';ctx.fillText('未完之境 · '+SEASONS[state.season].title,35,c.height-60);ctx.font='13px sans-serif';ctx.fillStyle='#7d8972';ctx.fillText(`${state.plants.length} 株植物 / ${new Set(state.plants.map(p=>p.species)).size} 种生机    人停下的地方，自然继续。`,35,c.height-30);const a=document.createElement('a');a.download='未完之境-'+SEASONS[state.season].name+'日花园.png';a.href=c.toDataURL('image/png');a.click();ring.visible=wasRing;if(ghost)ghost.visible=wasGhost;toast('风景已保存为 PNG 图片');};
+$('capture').onclick=()=>{let wasRing=ring.visible,wasGhost=ghost?.visible;ring.visible=false;previewRing.visible=false;if(ghost)ghost.visible=false;renderer.render(scene,camera);const c=document.createElement('canvas');c.width=renderer.domElement.width;c.height=renderer.domElement.height+110;let ctx=c.getContext('2d');ctx.fillStyle=scene.userData.backdropColor;ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(renderer.domElement,0,0);ctx.fillStyle='#344a3b';ctx.font='28px SimSun,serif';ctx.fillText('未完之境 · '+SEASONS[state.season].title,35,c.height-60);ctx.font='13px sans-serif';ctx.fillStyle='#7d8972';ctx.fillText(`${state.plants.length} 株植物 / ${new Set(state.plants.map(p=>p.species)).size} 种生机    人停下的地方，自然继续。`,35,c.height-30);const a=document.createElement('a');a.download='未完之境-'+SEASONS[state.season].name+'日花园.png';a.href=c.toDataURL('image/png');a.click();ring.visible=wasRing;if(ghost)ghost.visible=wasGhost;toast('风景已保存为 PNG 图片');};
 window.addEventListener('keydown',e=>{if(e.target.matches('input,textarea')||$('aboutDialog').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(e.key==='Escape')setMode('view');else if(e.key.toLowerCase()==='v')setMode('select');else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}});
 let last=performance.now();function animate(now){requestAnimationFrame(animate);let dt=Math.min((now-last)/1000,.05);last=now;controls.update();if(isRaining){for(let i=0;i<rainN;i++){let n=i*6,snow=state.season==='winter',speed=snow?.8:6;rainPositions[n+1]-=dt*speed;rainPositions[n+4]-=dt*speed;if(snow){const drift=Math.sin(now*.001+i)*dt*.18;rainPositions[n]+=drift;rainPositions[n+3]+=drift;}if(rainPositions[n+1]<-.2){rainPositions[n+1]=12;rainPositions[n+4]=12-(snow?.035:.23);}}rainGeo.attributes.position.needsUpdate=true;}renderer.render(scene,camera);}
 requestAnimationFrame(animate);$('loading').style.opacity='0';setTimeout(()=>$('loading').hidden=true,650);save();updateUI();
