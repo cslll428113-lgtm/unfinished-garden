@@ -23,16 +23,17 @@ export function vineLayout(p,{time=1,growth=1}={}){
  const age=growthProfile(time),size=(p.scale??1)*growth;
  const spread=size*age.spread,leafScale=Math.min(1.5,spread),edge=nearestVineEdge(p);
  const trailing=p.level===1&&edge.distance<.85;
+ const pothos=p.species==='pothos',count=pothos?5:8;
  const paths=[];
- for(let b=0;b<8;b++){
-  const phase=b*2.399+(p.rotation??0),length=(1.45+(Math.sin(phase*1.71)+1)*.43)*spread;
+ for(let b=0;b<count;b++){
+  const phase=b*2.399+(p.rotation??0),length=(pothos?1.35+(Math.sin(phase*1.71)+1)*.62:1.25+(Math.sin(phase*1.71)+1)*.45)*spread;
   const points=[];
   for(let j=0;j<=16;j++){
    const t=j/16;
    if(trailing){
-    const reach=length*t,clearance=.15+.18*leafScale,over=Math.max(0,reach-edge.distance-clearance);
+    const reach=length*t,clearance=pothos?.22+.32*leafScale:.15+.18*leafScale,over=Math.max(0,reach-edge.distance-clearance);
     const outward=Math.min(reach,edge.distance+clearance)+Math.sin(over*2.7+b)*.035*Math.min(over,1)+Math.min(over*.06,.12);
-    let side=(b-3.5)*.11*spread*Math.sin(Math.min(t*2,1)*Math.PI/2)+Math.sin(t*5+phase)*.045*spread*t;
+    let side=(b-(count-1)/2)*(pothos?.18:.11)*spread*Math.sin(Math.min(t*2,1)*Math.PI/2)+Math.sin(t*(pothos?7:5)+phase)*(pothos?.10:.035)*spread*t;
     if(edge.inner){const rootSide=edge.nx?p.z:p.x,half=edge.nx?.95:1.4,sign=edge.nx||-edge.nz;side=(clamp(rootSide+sign*side,-half+.43,half-.43)-rootSide)/sign;}
     const drop=Math.min(2.76,over*over/(over+.16));
     points.push({x:edge.nx*outward-edge.nz*side,y:.13+Math.sin(Math.min(reach/(edge.distance+clearance),1)*Math.PI)*.08*age.height-drop,z:edge.nz*outward+edge.nx*side});

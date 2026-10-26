@@ -6,6 +6,7 @@ import { WORLDS, BUILDINGS, normalizeWorld, normalizeBuilding, createWorld } fro
 import { Soundscape } from './soundscape.js';
 import { PlantFeedback } from './plant-feedback.js';
 import { isTrailingVine, vineLayout } from './vine-layout.js';
+import { createVineLeaves } from './vine-leaves.js';
 import { showPlantInfo } from './plant-info.js';
 import { normalizeTime, growthProfile, applySpecimenTime } from './growth.js';
 import { generateGarden } from './random-garden.js';
@@ -25,8 +26,8 @@ const SPECIES=[
  {id:'monstera',name:'龟背竹',latin:'Monstera',cat:'leaf',note:'宽叶层次',colors:[0x39614b,0x547b57,0x6e925e],kind:'monstera',height:1.5},
  {id:'hosta',name:'玉簪',latin:'Hosta',cat:'leaf',note:'柔软地被',colors:[0x819667,0xacb68a,0x648157],kind:'hosta',height:.55},
  {id:'grass',name:'细叶芒',latin:'Miscanthus',cat:'leaf',note:'风里的穗',colors:[0x9a9b61,0xb2ad74,0x87905d],kind:'grass',height:1.15},
- {id:'ivy',name:'常春藤',latin:'Hedera',cat:'vine',note:'铺展 · 沿边垂落',colors:[0x537143,0x7b915b,0x9cab70],kind:'ivy',height:2},
- {id:'pothos',name:'绿萝',latin:'Epipremnum',cat:'vine',note:'心叶 · 沿边垂落',colors:[0x638042,0x97a84d,0x7f994d],kind:'pothos',height:1.6},
+ {id:'ivy',name:'常春藤',latin:'Hedera',cat:'vine',note:'掌状裂叶 · 密枝',colors:[0x305b45,0x436c4f,0x577b57],kind:'ivy',height:2},
+ {id:'pothos',name:'绿萝',latin:'Epipremnum',cat:'vine',note:'斑纹心叶 · 长藤',colors:[0x6d8f3c,0x819b45,0x587f36],kind:'pothos',height:1.6},
  {id:'sakura',name:'樱花',latin:'Prunus',cat:'tree',note:'淡粉花枝',colors:[0x87945c,0xabb67d,0x718454],flower:[0xf0c5d3,0xffe2e8,0xd998b0],kind:'sakura',height:2.9},
  {id:'magnolia',name:'白玉兰',latin:'Magnolia',cat:'tree',note:'枝头白瓷',colors:[0x62784c,0x8e9d67,0x7c8b5a],flower:[0xfff4e1,0xe7d9c7,0xf6e9dc],kind:'magnolia',height:2.6},
  {id:'tulip',name:'郁金香',latin:'Tulipa',cat:'flower',note:'杏粉杯盏',colors:[0x648569,0x8fa47e,0x749575],flower:[0xe8a68e,0xf6c1a3,0xd78b93],kind:'tulip',height:.9},
@@ -121,6 +122,7 @@ buildArchitecture('frame');
 function leafGeometry(){const g=new THREE.BufferGeometry(),pos=[],norm=[],uv=[],idx=[];let n=10;for(let i=0;i<=n;i++){let t=i/n,w=Math.sin(t*Math.PI)*.48;for(let j=0;j<3;j++){let x=(j-1)*w;pos.push(x,t,.13*Math.sin(Math.PI*t)-Math.abs(x)*.16);uv.push(j/2,t);}}for(let i=0;i<n;i++)for(let j=0;j<2;j++){let a=i*3+j;idx.push(a,a+1,a+3,a+1,a+4,a+3);}g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;}
 const leafGeo=leafGeometry(),stemGeo=new THREE.CylinderGeometry(1,1,1,5),ballGeo=new THREE.IcosahedronGeometry(1,1),flowerGeo=new THREE.IcosahedronGeometry(1,0);
 const leafMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.86,side:THREE.DoubleSide});const stemMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1});const bloomMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1});
+const vineLeaves=createVineLeaves(),ivyLeafMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.76,side:THREE.DoubleSide}),pothosLeafMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.44,side:THREE.DoubleSide});
 const dummy=new THREE.Object3D(),up=v(0,1,0),tempColor=new THREE.Color();
 const petalMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.8,side:THREE.DoubleSide});
 function buildPlant(s,index,vinePose){seed=410+index*139;let group=new THREE.Group(),leaves=[],stems=[],blooms=[],petals=[];
@@ -174,19 +176,20 @@ function buildPlant(s,index,vinePose){seed=410+index*139;let group=new THREE.Gro
  }else if(kind==='monstera'||kind==='hosta'){
   for(let j=0;j<(kind==='hosta'?15:11);j++){let a=j*2.4,len=kind==='hosta'?range(.2,.45):range(.5,1.1),tip=v(Math.cos(a)*len*.55,len,Math.sin(a)*len*.55);stem(v(),tip,kind==='hosta'?.007:.018,0x66824f);leaf(tip,v(Math.cos(a),.35,Math.sin(a)),kind==='hosta'?range(.35,.65):range(.65,.95),kind==='hosta'?.65:1.05);}
  }else if(kind==='ivy'||kind==='pothos'){
-  const pose=vinePose??{x:0,z:3,level:1,scale:1,rotation:0},layout=vineLayout(pose,{time:pose.time??1,growth:pose.growth??1});group.userData.vineMode=layout.mode;
+  const pose={...(vinePose??{x:0,z:3,level:1,scale:1,rotation:0}),species:s.id},layout=vineLayout(pose,{time:pose.time??1,growth:pose.growth??1});group.userData.vineMode=layout.mode;
   for(let b=0;b<layout.paths.length;b++){
    const points=layout.paths[b],edge=layout.edge;
    for(let j=1;j<points.length;j++){
     const prev=v(points[j-1].x,points[j-1].y,points[j-1].z),point=v(points[j].x,points[j].y,points[j].z);
-    stem(prev,point,.006*Math.max(.25,layout.leafScale),kind==='pothos'?0x7d9150:0x6c8055);
-    if(j%2===0){const side=j%4?1:-1,a=b*2.399+(pose.rotation??0)+side*.9;
+    stem(prev,point,(kind==='pothos'?.009:.0045)*Math.max(.25,layout.leafScale),kind==='pothos'?0x8c9a55:0x726f56);
+    if(kind==='ivy'?j%3!==0:j%3===1){const side=j%2?1:-1,a=b*2.399+(pose.rotation??0)+side*.9;
      const dir=edge?v(edge.nx*.65-edge.nz*side*.8,.65,edge.nz*.65+edge.nx*side*.8):v(Math.cos(a),.75,Math.sin(a));
-     leaf(point,dir,range(.19,kind==='pothos'?.34:.27)*layout.leafScale,kind==='pothos'?1:.85);
+     const len=range(kind==='pothos'?.38:.18,kind==='pothos'?.54:.26)*layout.leafScale,tip=point.clone().add(dir.clone().normalize().multiplyScalar((kind==='pothos'?.12:.06)*layout.leafScale));if(point.y>=0)tip.y=Math.max(tip.y,len*.5+.035);stem(point,tip,.0035*layout.leafScale,kind==='pothos'?0x8c9a55:0x726f56);
+     leaf(tip,dir,len,kind==='pothos'?1:.95);
     }
    }
   }
-  for(let j=0;j<10;j++){const a=j*2.399;leaf(v(Math.cos(a)*.09*layout.leafScale,.12,Math.sin(a)*.09*layout.leafScale),v(Math.cos(a),.9,Math.sin(a)),.28*layout.leafScale,.9);}
+  for(let j=0;j<(kind==='pothos'?6:9);j++){const a=j*2.399;leaf(v(Math.cos(a)*.09*layout.leafScale,.18+.15*layout.leafScale,Math.sin(a)*.09*layout.leafScale),v(Math.cos(a),.9,Math.sin(a)),(kind==='pothos'?.46:.24)*layout.leafScale,1);}
  }else if(kind==='grass'||kind==='salvia'){
   for(let j=0;j<(kind==='grass'?38:24);j++){let a=rand()*TAU,h=range(.45,1.2),base=v(range(-.25,.25),0,range(-.25,.25)),tip=base.clone().add(v(Math.cos(a)*.26,h,Math.sin(a)*.26));stem(base,tip,.005,0x899163);for(let k=1;k<=3;k++){let p=base.clone().lerp(tip,k/4);leaf(p,v(Math.cos(a+k),.65,Math.sin(a+k)),kind==='grass'?range(.4,.75):.22,kind==='grass'?.065:.32);}for(let k=0;k<7;k++){let p=tip.clone().add(v(range(-.03,.03),k*.035,range(-.03,.03)));bloom(p,kind==='grass'?.035:.042,kind==='grass'?0xc7bd8e:undefined);}}
  }else if(kind==='hydrangea'){
@@ -196,7 +199,7 @@ function buildPlant(s,index,vinePose){seed=410+index*139;let group=new THREE.Gro
   for(let j=0;j<9;j++){let a=j*2.4,tip=v(Math.cos(a)*range(.4,.9),range(.5,1.25),Math.sin(a)*range(.4,.9));stem(v(),tip,.015,0x8d8167);for(let k=0;k<16;k++){let p=tip.clone().multiplyScalar(range(.35,1)).add(v(range(-.2,.2),range(-.1,.25),range(-.2,.2)));leaf(p,v(Math.cos(a+k),.4,Math.sin(a+k)),range(.16,.28));}for(let k=0;k<20;k++)bloom(tip.clone().add(v(range(-.28,.28),range(-.15,.22),range(-.28,.28))),range(.07,.12));}
  }
  function batch(data,geo,mat,part){if(!data.length)return;let m=new THREE.InstancedMesh(geo,mat,data.length);m.userData.part=part;data.forEach((t,i)=>{dummy.position.copy(t.p);dummy.quaternion.copy(t.q);dummy.scale.copy(t.scale);dummy.updateMatrix();m.setMatrixAt(i,dummy.matrix);m.setColorAt(i,tempColor.setHex(t.color));});m.instanceMatrix.needsUpdate=true;m.castShadow=true;m.receiveShadow=true;group.add(m);}
- batch(stems,stemGeo,stemMat,'stem');batch(leaves,leafGeo,leafMat,'leaf');batch(blooms,flowerGeo,bloomMat,'flower');batch(petals,leafGeo,petalMat,kind==='echeveria'?'leaf':'flower');group.userData.species=s.id;return group;
+ batch(stems,stemGeo,stemMat,'stem');batch(leaves,vineLeaves[kind]??leafGeo,kind==='ivy'?ivyLeafMat:kind==='pothos'?pothosLeafMat:leafMat,'leaf');batch(blooms,flowerGeo,bloomMat,'flower');batch(petals,leafGeo,petalMat,kind==='echeveria'?'leaf':'flower');group.userData.species=s.id;return group;
 }
 SPECIES.forEach((s,i)=>templates[s.id]=buildPlant(s,i));
 const seasonalTemplates={};
