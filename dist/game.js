@@ -394,7 +394,7 @@ for(const button of document.querySelectorAll('[data-world]'))button.onclick=()=
 for(const button of document.querySelectorAll('[data-building]'))button.onclick=()=>{
  if(state.building===button.dataset.building)return;checkpoint();state.building=button.dataset.building;applySeason();finish();toast('已切换'+BUILDINGS[state.building]+' · 两层植物位置已保留');
 };
-function updatePlantSoundUI(){const b=$('plantSoundToggle');b.setAttribute('aria-pressed',String(plantFeedback.enabled));b.textContent=plantFeedback.enabled?'已开启':'已关闭';$('plantSoundStatus').textContent='种下时的一声轻响 · 独立于环境声';}
+function updatePlantSoundUI(){const b=$('plantSoundToggle');b.setAttribute('aria-pressed',String(plantFeedback.enabled));b.textContent=plantFeedback.enabled?'已开启':'已关闭';$('plantSoundStatus').textContent='落土与枝叶轻响 · 独立于环境声';}
 updatePlantSoundUI();
 $('plantSoundToggle').onclick=()=>{plantFeedback.setEnabled(!plantFeedback.enabled);updatePlantSoundUI();};
 $('closePlantInfo').onclick=()=>$('plantInfoDialog').close();
