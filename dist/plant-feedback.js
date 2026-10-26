@@ -1,28 +1,28 @@
 // A separate, gesture-started bus keeps planting feedback independent of ambience.
 const KEY='unfinished-garden-plant-feedback';
 
-// Original noise-based foley: compact earth impact, irregular grit, leafy tail.
+// A quiet leaf/soil brush with a rounded envelope, without an impact transient.
 // No pitched oscillator, chime, or imported game recording.
 export function plantingTexture(sampleRate,seed=1){
  const data=new Float32Array(Math.ceil(sampleRate*.24));
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
- const grains=Array.from({length:11},(_,i)=>({start:.006+i*.008+random()*.006,length:.004+random()*.011,level:.10+random()*.13}));
- let bass=0,body=0,leaf=0,peak=0;
+ const grains=Array.from({length:5},(_,i)=>({start:.015+i*.022+random()*.009,length:.025+random()*.018,level:.10+random()*.08}));
+ let low=0,body=0,soft=0,peak=0;
  const pole=hz=>1-Math.exp(-2*Math.PI*hz/sampleRate);
- const bassPole=pole(160),bodyPole=pole(1800),leafPole=pole(3400);
+ const lowPole=pole(450),bodyPole=pole(2200),softPole=pole(2600);
  for(let i=0;i<data.length;i++){
   const t=i/sampleRate,n=random()*2-1;
-  bass+=bassPole*(n-bass);body+=bodyPole*(n-body);leaf+=leafPole*(n-leaf);
-  const attack=Math.min(1,t/.0025),fade=Math.min(1,(.24-t)/.025);
-  const impact=(bass*3.8+body*.27)*Math.exp(-t/ .027)*attack;
-  let crunch=0;
-  for(const grain of grains){const u=(t-grain.start)/grain.length;if(u>0&&u<1)crunch+=Math.sin(Math.PI*u)*grain.level;}
-  const rustle=Math.max(0,t-.025)/.035*Math.exp(-Math.max(0,t-.025)/.035);
-  data[i]=(impact+(body-bass)*crunch+(leaf-body)*rustle*.7)*Math.max(0,fade);
+  low+=lowPole*(n-low);body+=bodyPole*(n-body);soft+=softPole*((body-low)-soft);
+  const attack=Math.sin(Math.min(1,t/.025)*Math.PI/2)**2;
+  const tail=Math.exp(-Math.max(0,t-.025)/.038);
+  const fade=Math.sin(Math.min(1,Math.max(0,.24-t)/.035)*Math.PI/2)**2;
+  let texture=.22;
+  for(const grain of grains){const u=(t-grain.start)/grain.length;if(u>0&&u<1)texture+=Math.sin(Math.PI*u)**2*grain.level;}
+  data[i]=soft*texture*attack*tail*fade;
   peak=Math.max(peak,Math.abs(data[i]));
  }
- // Fixed headroom for repeated placement; the buffer ends at zero without clicks.
- for(let i=0;i<data.length;i++)data[i]*=.48/Math.max(peak,.001);
+ // Peak is 14.5 dB below the previous impact: gentle even on headphones.
+ for(let i=0;i<data.length;i++)data[i]*=.09/Math.max(peak,.001);
  data[data.length-1]=0;
  return data;
 }

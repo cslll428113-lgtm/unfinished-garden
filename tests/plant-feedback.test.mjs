@@ -37,10 +37,11 @@ test('earth textures are finite, short, distinct, and have silent boundaries',()
  for(const rate of [44100,48000]){
   const a=plantingTexture(rate,91),b=plantingTexture(rate,237);
   assert.equal(a.length,Math.ceil(rate*.24));assert.equal(a[0],0);assert.equal(a.at(-1),0);
-  assert.ok(a.every(x=>Number.isFinite(x)&&Math.abs(x)<=.481));
+  assert.ok(a.every(x=>Number.isFinite(x)&&Math.abs(x)<=.091));
   assert.notDeepEqual(a,b);
   const energy=(start,end)=>a.slice(Math.floor(start*rate),Math.floor(end*rate)).reduce((s,x)=>s+x*x,0)/((end-start)*rate);
   assert.ok(energy(0,.06)>energy(.18,.24)*10);
+  assert.ok(energy(0,.005)<energy(.025,.05)*.03,'no explosive starting transient');
  }
 });
 test('muting clears active sounds instead of replaying their tails on resume',async()=>{
