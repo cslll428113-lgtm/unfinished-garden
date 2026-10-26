@@ -3,7 +3,7 @@ import * as THREE from 'three';
 export const WORLDS={
  white:{name:'纯白',note:'留白与树影，让建筑成为主角。',sky:'#ffffff',ground:'#fafafa',sound:'轻风'},
  snow:{name:'雪地',note:'风拂过积雪与疏枝，花园在雪原里慢慢生长。',sky:'#e4edf0',ground:'#edf2f2',sound:'雪原风声'},
- coast:{name:'海边',note:'沿着曲折的沙岸，听潮水走进花园。',sky:'#e3eff0',ground:'#e8ddc4',sound:'海浪与海风'},
+ coast:{name:'海岛',note:'沙洲、潮线与海浪，围绕一座未完成的建筑。',sky:'#e3eff0',ground:'#e8ddc4',sound:'海浪与海风'},
  mountain:{name:'山里',note:'花园落在山谷里，远山与林丛渐隐于雾。',sky:'#e3ece8',ground:'#bcc9ad',sound:'山风与鸟鸣'}
 };
 export const BUILDINGS={frame:'未完框架',arcade:'回廊花园',ruin:'断墙遗址'};
@@ -54,18 +54,11 @@ export function createWorld(scene){
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));g.computeVertexNormals();mesh(g,{vertices:true,order:-40});
  }
  function coast(){
-  const seaAxis=axis(210,38,1.5);
-  mesh(grid(seaAxis,seaAxis,(x,z)=>[x,-.53,z],(x,y,z)=>{const depth=x-shoreAt(z);return blend('#a8d4cc','#558eaa',smooth(0,35,depth));}),{vertices:true,basic:true,order:-1000});
-  const us=[0,.25,.6,1.2,2,3.5,5,8,12,18,27,40,65,100,160,300],zs=axis(210,80,1.55);
-  mesh(grid(us,zs,(u,z)=>[shoreAt(z)-u,-.29-.22*Math.exp(-u*2),z],(x,y,z)=>{const u=shoreAt(z)-x,grain=.025*Math.sin(x*1.7+z*.9);return blend('#d8cdae','#f2e6cb',smooth(0,3,u)).lerp(color('#bac8a4'),smooth(18,36,u)*.83+grain);}),{vertices:true,order:-900});
-  // Foam follows the shore in irregular, tapering fragments. No concentric rings.
-  for(let band=0;band<4;band++)for(let j=0;j<7;j++){
-   const start=-39+j*12+random()*5,length=5+random()*6,offset=.6+band*2.4,pts=[];
-   for(let k=0;k<=28;k++){const z=start+k/28*length;pts.push([shoreAt(z)+offset+Math.sin(z*.7+band)*.18,-.515,z]);}
-   ribbon(pts,band===0?.17:.07,0xf0f6e9,band===0?.78:.35,-800);
-  }
-  const rocks=batch(),rock=rockGeometry();for(const [cx,cz,count] of [[15,-17,5],[22,19,4],[10,-32,4]])for(let i=0;i<count;i++){const x=cx+(random()-.5)*3,z=cz+(random()-.5)*4,s=.35+random()*.95;rocks.add(rock,[x,-.52,z],[s, s*(.6+random()*.5),s*.8],i%2?0x899d97:0xa3aaa0,random()*6.28);}rocks.finish(-700);rock.dispose();
-  const tufts=[];for(let i=0;i<36;i++){const z=-23+random()*46,x=shoreAt(z)-2.5-random()*3;if(Math.abs(x)<6.8&&Math.abs(z)<4.5)continue;tufts.push([x,-.29,z,.65+random()*.5]);}grasses(tufts,true);
+  // Restore the original island composition: sand surrounded by water on all sides.
+  const water=mesh(new THREE.PlaneGeometry(110,110,18,18),{tint:0x86b7bc,basic:true,order:-1000});water.rotation.x=-Math.PI/2;water.position.y=-.48;
+  function disk(radius,tint,y){const m=mesh(new THREE.CircleGeometry(radius,64),{tint,order:-950+root.children.length});m.rotation.x=-Math.PI/2;m.position.y=y;m.scale.set(1.15,.78,1);}
+  disk(9.7,0xc0d9d4,-.42);disk(9.2,0xe7e5d0,-.37);disk(8.7,0xe9dfc7,-.29);
+  for(let i=0;i<6;i++){const r=11+i*2.6,m=mesh(new THREE.RingGeometry(r,r+.06,72),{tint:0xc8e4df,basic:true,order:-980+i});m.position.y=-.46+i*.001;m.rotation.x=-Math.PI/2;m.scale.set(1,.8,1);}
  }
 
  // Snow is its own continuous landscape, with wind-shaped banks and bare trees.
@@ -128,6 +121,6 @@ export function createWorld(scene){
  }
  return {root,set(value){
   for(const o of [...root.children]){root.remove(o);o.geometry.dispose();}for(const m of materials)m.dispose();materials.clear();random=rng(83);
-  value=normalizeWorld(value);root.rotation.y=value==='coast'?Math.PI*.75:0;if(value==='coast')coast();else if(value==='snow')snowGarden();else if(value==='mountain')mountains(false);
+  value=normalizeWorld(value);root.rotation.y=0;if(value==='coast')coast();else if(value==='snow')snowGarden();else if(value==='mountain')mountains(false);
  }};
 }

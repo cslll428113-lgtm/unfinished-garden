@@ -320,7 +320,7 @@ function setRain(enabled){
  rainGeo.attributes.position.needsUpdate=true;
 }
 rainLines.frustumCulled=false;
-setRain(state.world==='snow');
+setRain(false);
 $('rain').onclick=()=>{setRain(!isRaining);applyWorld();const word=isSnowWeather()?'雪':'雨';toast(isRaining?word+'落下了 · 再点一次即可停止':word+'停了，继续布置你的花园吧');};
 function applySeason(){
  state.world=normalizeWorld(state.world);state.building=normalizeBuilding(state.building);
@@ -352,7 +352,7 @@ function applyWorld(){
  document.querySelectorAll('[data-building]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.building===state.building)));
 }
 for(const button of document.querySelectorAll('[data-world]'))button.onclick=()=>{
- if(state.world===button.dataset.world)return;checkpoint();state.world=button.dataset.world;if(state.world==='snow')setRain(true);applySeason();frameEnvironment();finish();toast('已来到'+WORLDS[state.world].name+' · 植物布置已保留');
+ if(state.world===button.dataset.world)return;checkpoint();state.world=button.dataset.world;applySeason();finish();toast('已来到'+WORLDS[state.world].name+' · 植物布置已保留');
 };
 for(const button of document.querySelectorAll('[data-building]'))button.onclick=()=>{
  if(state.building===button.dataset.building)return;checkpoint();state.building=button.dataset.building;applySeason();finish();toast('已切换'+BUILDINGS[state.building]+' · 两层植物位置已保留');
