@@ -319,7 +319,17 @@ $('gardenTime').addEventListener('input',()=>{
  if(!timeFrame)timeFrame=requestAnimationFrame(()=>{timeFrame=0;updateGrowth();});
 });
 $('gardenTime').addEventListener('change',()=>{if(timeFrame){cancelAnimationFrame(timeFrame);timeFrame=0;}updateGrowth();timeEditing=false;save();});
-$('grow').onclick=()=>{$('gardenTime').focus();};
+function timePanel(open){
+ $('timePanel').hidden=!open;$('timeToggle').setAttribute('aria-expanded',String(open));$('timeToggle').classList.toggle('active',open);
+ if(open)$('gardenTime').focus();
+}
+$('timeToggle').onclick=()=>timePanel($('timePanel').hidden);
+$('closeTime').onclick=()=>{timePanel(false);$('timeToggle').focus();};
+$('timePanel').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();timePanel(false);$('timeToggle').focus();}});
+$('grow').onclick=()=>{
+ if(state.growth>=1.3){toast('枝叶已充分舒展；仍可单独调整每株大小');return;}
+ checkpoint();state.growth=Math.min(1.3,(state.growth||1)+.08);updateGrowth();save();toast('枝叶又舒展了一点');
+};
 const rainN=500,rainPositions=new Float32Array(rainN*6);for(let i=0;i<rainN;i++){let x=range(-8,8),y=range(0,12),z=range(-6,6);rainPositions.set([x,y,z,x-.035,y-.23,z],i*6);}const rainGeo=new THREE.BufferGeometry();rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPositions,3));const rainLines=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:0x90aba7,transparent:true,opacity:.45,depthWrite:false}));rainLines.visible=false;scene.add(rainLines);
 // Weather is an explicit toggle, independent of frame rate and garden undo.
 function setRain(enabled){
