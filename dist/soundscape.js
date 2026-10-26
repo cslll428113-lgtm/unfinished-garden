@@ -17,5 +17,4 @@ export class Soundscape{
  }
  tone(start,end,delay,duration,volume){if(!this.enabled||document.hidden)return;const c=this.ctx,t=c.currentTime+delay,o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.setValueAtTime(start,t);o.frequency.exponentialRampToValueAtTime(end,t+duration);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(volume,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g).connect(this.master);o.start(t);o.stop(t+duration+.03);o.onended=()=>{o.disconnect();g.disconnect();};}
  bird(){this.tone(1900,3000,0,.18,.065);this.tone(2400,1700,.22,.17,.045);}
- plant(){this.tone(440,660,0,.18,.15);this.tone(660,880,.1,.25,.08);}
 }
