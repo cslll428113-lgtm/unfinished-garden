@@ -5,6 +5,7 @@ import { PHOTO_LOOKS, normalizeLook, normalizeStrength, photoLook, paintPhoto } 
 import { WORLDS, BUILDINGS, normalizeWorld, normalizeBuilding, createWorld } from './worlds.js';
 import { Soundscape } from './soundscape.js';
 import { PlantFeedback } from './plant-feedback.js';
+import { isTrailingVine, vineLayout } from './vine-layout.js';
 import { showPlantInfo } from './plant-info.js';
 import { normalizeTime, growthProfile, applySpecimenTime } from './growth.js';
 import { generateGarden } from './random-garden.js';
@@ -24,8 +25,8 @@ const SPECIES=[
  {id:'monstera',name:'龟背竹',latin:'Monstera',cat:'leaf',note:'宽叶层次',colors:[0x39614b,0x547b57,0x6e925e],kind:'monstera',height:1.5},
  {id:'hosta',name:'玉簪',latin:'Hosta',cat:'leaf',note:'柔软地被',colors:[0x819667,0xacb68a,0x648157],kind:'hosta',height:.55},
  {id:'grass',name:'细叶芒',latin:'Miscanthus',cat:'leaf',note:'风里的穗',colors:[0x9a9b61,0xb2ad74,0x87905d],kind:'grass',height:1.15},
- {id:'ivy',name:'常春藤',latin:'Hedera',cat:'vine',note:'向下漫生',colors:[0x537143,0x7b915b,0x9cab70],kind:'ivy',height:2},
- {id:'pothos',name:'绿萝',latin:'Epipremnum',cat:'vine',note:'垂坠心叶',colors:[0x638042,0x97a84d,0x7f994d],kind:'pothos',height:1.6},
+ {id:'ivy',name:'常春藤',latin:'Hedera',cat:'vine',note:'铺展 · 沿边垂落',colors:[0x537143,0x7b915b,0x9cab70],kind:'ivy',height:2},
+ {id:'pothos',name:'绿萝',latin:'Epipremnum',cat:'vine',note:'心叶 · 沿边垂落',colors:[0x638042,0x97a84d,0x7f994d],kind:'pothos',height:1.6},
  {id:'sakura',name:'樱花',latin:'Prunus',cat:'tree',note:'淡粉花枝',colors:[0x87945c,0xabb67d,0x718454],flower:[0xf0c5d3,0xffe2e8,0xd998b0],kind:'sakura',height:2.9},
  {id:'magnolia',name:'白玉兰',latin:'Magnolia',cat:'tree',note:'枝头白瓷',colors:[0x62784c,0x8e9d67,0x7c8b5a],flower:[0xfff4e1,0xe7d9c7,0xf6e9dc],kind:'magnolia',height:2.6},
  {id:'tulip',name:'郁金香',latin:'Tulipa',cat:'flower',note:'杏粉杯盏',colors:[0x648569,0x8fa47e,0x749575],flower:[0xe8a68e,0xf6c1a3,0xd78b93],kind:'tulip',height:.9},
@@ -122,7 +123,7 @@ const leafGeo=leafGeometry(),stemGeo=new THREE.CylinderGeometry(1,1,1,5),ballGeo
 const leafMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.86,side:THREE.DoubleSide});const stemMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1});const bloomMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1});
 const dummy=new THREE.Object3D(),up=v(0,1,0),tempColor=new THREE.Color();
 const petalMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.8,side:THREE.DoubleSide});
-function buildPlant(s,index){seed=410+index*139;let group=new THREE.Group(),leaves=[],stems=[],blooms=[],petals=[];
+function buildPlant(s,index,vinePose){seed=410+index*139;let group=new THREE.Group(),leaves=[],stems=[],blooms=[],petals=[];
  function leaf(p,dir,len,width=1,color){let q=new THREE.Quaternion().setFromUnitVectors(up,dir.clone().normalize());leaves.push({p,q,scale:v(len*width,len,len),color:color??s.colors[Math.floor(rand()*s.colors.length)]});}
  function stem(a,b,r=.018,color=0x7b7953){let d=b.clone().sub(a);stems.push({p:a.clone().add(b).multiplyScalar(.5),q:new THREE.Quaternion().setFromUnitVectors(up,d.clone().normalize()),scale:v(r,d.length(),r*.85),color});}
  function bloom(p,size,color){blooms.push({p,q:new THREE.Quaternion().setFromEuler(new THREE.Euler(rand()*3,rand()*3,rand()*3)),scale:v(size,size*.7,size),color:color??s.flower?.[Math.floor(rand()*s.flower.length)]??0xd7c497});}
@@ -154,9 +155,10 @@ function buildPlant(s,index){seed=410+index*139;let group=new THREE.Group(),leav
    for(let layer=0;layer<4;layer++)for(let j=0;j<9-layer;j++){const t=j*TAU/(9-layer)+layer*.45;petal(center.clone().add(v(0,layer*.035,0)),v(Math.cos(t),.2+layer*.35,Math.sin(t)),(.34-layer*.055)*size,.95,s.colors[(j+layer)%s.colors.length]);}
   }
  }else if(kind==='wisteria'){
-  for(let b=0;b<7;b++){const a=b*2.399,tip=v(Math.cos(a)*range(.4,.85),range(.08,.3),Math.sin(a)*range(.4,.85));stem(v(),tip,.012,0x827d60);
-   for(let k=0;k<8;k++){const p=tip.clone().multiplyScalar(k/8);leaf(p,v(Math.cos(a+(k%2?1:-1)),.35,Math.sin(a+(k%2?1:-1))),.27,.45);}
-   for(let c=0;c<2;c++){const start=tip.clone().add(v(c*.14,0,-c*.1)),len=range(.7,1.5);stem(start,start.clone().add(v(.04,-len,0)),.005,0x8e9879);
+  const crown=v(.06,1.45,0);stem(v(),v(-.05,.7,.03),.055,0x827d60);stem(v(-.05,.7,.03),crown,.038,0x827d60);
+  for(let b=0;b<7;b++){const a=b*2.399,tip=v(Math.cos(a)*range(.4,.85),range(1.8,2.25),Math.sin(a)*range(.4,.85));stem(crown,tip,.018,0x827d60);
+   for(let k=0;k<8;k++){const p=crown.clone().lerp(tip,k/8);leaf(p,v(Math.cos(a+(k%2?1:-1)),.35,Math.sin(a+(k%2?1:-1))),.27,.45);}
+   for(let c=0;c<2;c++){const start=tip.clone().add(v(c*.14,0,-c*.1)),len=range(.65,1.2);stem(start,start.clone().add(v(.04,-len,0)),.005,0x8e9879);
     for(let j=0;j<13;j++){const t=j/13,rr=.13*(1-t)+.02,p=start.clone().add(v(.04*t,-len*t,0));for(let k=0;k<3;k++){const angle=j*2.4+k*TAU/3;petal(p,v(Math.cos(angle)*.75,-.6,Math.sin(angle)*.75),rr,.9);}}
    }
   }
@@ -172,8 +174,19 @@ function buildPlant(s,index){seed=410+index*139;let group=new THREE.Group(),leav
  }else if(kind==='monstera'||kind==='hosta'){
   for(let j=0;j<(kind==='hosta'?15:11);j++){let a=j*2.4,len=kind==='hosta'?range(.2,.45):range(.5,1.1),tip=v(Math.cos(a)*len*.55,len,Math.sin(a)*len*.55);stem(v(),tip,kind==='hosta'?.007:.018,0x66824f);leaf(tip,v(Math.cos(a),.35,Math.sin(a)),kind==='hosta'?range(.35,.65):range(.65,.95),kind==='hosta'?.65:1.05);}
  }else if(kind==='ivy'||kind==='pothos'){
-  for(let b=0;b<8;b++){let a=b*2.4,l=range(1,2.3),prev=v();for(let j=0;j<13;j++){let t=j/12,rr=.12+t*.5,p=v(Math.cos(a)*rr+Math.sin(t*5+b)*.09,.16-Math.pow(t,1.15)*l,Math.sin(a)*rr);stem(prev,p,.007,0x74805c);let side=j%2?1:-1;leaf(p,v(Math.cos(a+side),.15,Math.sin(a+side)),range(.15,kind==='pothos'?.34:.26),kind==='pothos'?1:.8);prev=p;}}
-  for(let j=0;j<12;j++){let a=rand()*TAU;leaf(v(Math.cos(a)*.1,.03,Math.sin(a)*.1),v(Math.cos(a),.4,Math.sin(a)),.33,.9);}
+  const pose=vinePose??{x:0,z:3,level:1,scale:1,rotation:0},layout=vineLayout(pose,{time:pose.time??1,growth:pose.growth??1});group.userData.vineMode=layout.mode;
+  for(let b=0;b<layout.paths.length;b++){
+   const points=layout.paths[b],edge=layout.edge;
+   for(let j=1;j<points.length;j++){
+    const prev=v(points[j-1].x,points[j-1].y,points[j-1].z),point=v(points[j].x,points[j].y,points[j].z);
+    stem(prev,point,.006*Math.max(.25,layout.leafScale),kind==='pothos'?0x7d9150:0x6c8055);
+    if(j%2===0){const side=j%4?1:-1,a=b*2.399+(pose.rotation??0)+side*.9;
+     const dir=edge?v(edge.nx*.65-edge.nz*side*.8,.65,edge.nz*.65+edge.nx*side*.8):v(Math.cos(a),.75,Math.sin(a));
+     leaf(point,dir,range(.19,kind==='pothos'?.34:.27)*layout.leafScale,kind==='pothos'?1:.85);
+    }
+   }
+  }
+  for(let j=0;j<10;j++){const a=j*2.399;leaf(v(Math.cos(a)*.09*layout.leafScale,.12,Math.sin(a)*.09*layout.leafScale),v(Math.cos(a),.9,Math.sin(a)),.28*layout.leafScale,.9);}
  }else if(kind==='grass'||kind==='salvia'){
   for(let j=0;j<(kind==='grass'?38:24);j++){let a=rand()*TAU,h=range(.45,1.2),base=v(range(-.25,.25),0,range(-.25,.25)),tip=base.clone().add(v(Math.cos(a)*.26,h,Math.sin(a)*.26));stem(base,tip,.005,0x899163);for(let k=1;k<=3;k++){let p=base.clone().lerp(tip,k/4);leaf(p,v(Math.cos(a+k),.65,Math.sin(a+k)),kind==='grass'?range(.4,.75):.22,kind==='grass'?.065:.32);}for(let k=0;k<7;k++){let p=tip.clone().add(v(range(-.03,.03),k*.035,range(-.03,.03)));bloom(p,kind==='grass'?.035:.042,kind==='grass'?0xc7bd8e:undefined);}}
  }else if(kind==='hydrangea'){
@@ -215,13 +228,25 @@ const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
 function inFloor(x,z,level){return Math.abs(x)<=4.98&&Math.abs(z)<=3.02&&!(level===1&&Math.abs(x)<1.4&&Math.abs(z)<.95);}
 function floorAtEvent(e,forcedLevel){const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const levels=forcedLevel!==undefined?[forcedLevel]:floor==='all'?[1,0]:[Number(floor)];for(const level of levels){const p=raycaster.ray.intersectPlane(new THREE.Plane(v(0,1,0),-level*3.1),v());if(p&&inFloor(p.x,p.z,level))return {x:p.x,z:p.z,level};}return null;}
 function pickedPlant(e){floorAtEvent(e);let meshes=[];plantMeshes.forEach((g,id)=>{if(g.visible)g.children.forEach(m=>meshes.push(m));});const hits=raycaster.intersectObjects(meshes,false);return hits[0]?.object.parent.userData.id??null;}
-function applyTransform(p,g){g.position.set(p.x,p.level*3.1+.015,p.z);g.rotation.y=p.rotation;const age=growthProfile(state.time),size=p.scale*(state.growth||1);g.scale.set(size*age.spread,size*age.height,size*age.spread);g.visible=floor==='all'||p.level===Number(floor);}
+function applyGhostMaterial(g){g.traverse(obj=>{if(obj.isMesh){obj.material=obj.material.clone();obj.material.transparent=true;obj.material.opacity=.38;obj.castShadow=false;obj.material.depthWrite=false;}});}
+function adaptVine(p,g){
+ const key=JSON.stringify([p.species,p.x,p.z,p.level,p.scale,p.rotation,state.time,state.growth,state.season]);if(g.userData.vineKey===key)return;
+ const raw=buildPlant(speciesMap[p.species],SPECIES.findIndex(s=>s.id===p.species),{...p,time:state.time,growth:state.growth||1});
+ for(const mesh of raw.children){const look=seasonalLook(p.species,mesh.userData.part,state.season);mesh.count=Math.round(mesh.count*look.fraction);if(look.tint!==null)for(let i=0;i<mesh.count;i++){mesh.getColorAt(i,tempColor);tempColor.lerp(new THREE.Color(look.tint),look.mix);mesh.setColorAt(i,tempColor);}mesh.instanceColor.needsUpdate=true;mesh.frustumCulled=false;}
+ for(const child of [...g.children]){g.remove(child);if(child.isInstancedMesh)child.dispose();if(g.userData.isGhost)child.material?.dispose();}
+ g.add(...[...raw.children]);g.userData.vineKey=key;g.userData.vineMode=raw.userData.vineMode;applySpecimenTime(g,state.time);if(g.userData.isGhost)applyGhostMaterial(g);
+}
+function applyTransform(p,g){
+ g.position.set(p.x,p.level*3.1+.015,p.z);
+ if(isTrailingVine(p.species)){adaptVine(p,g);g.rotation.y=0;g.scale.setScalar(1);}else{g.rotation.y=p.rotation;const age=growthProfile(state.time),size=p.scale*(state.growth||1);g.scale.set(size*age.spread,size*age.height,size*age.spread);}
+ g.visible=floor==='all'||p.level===Number(floor);
+}
 function renderPlants(){for(const g of plantMeshes.values()){plantsRoot.remove(g);g.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}plantMeshes.clear();for(const p of state.plants){let g=plantTemplate(p.species).clone(true);g.userData.id=p.id;applySpecimenTime(g,state.time);applyTransform(p,g);plantsRoot.add(g);plantMeshes.set(p.id,g);}refreshLitter();updateUI();}
-function updateUI(){updateTimeUI();const kinds=new Set(state.plants.map(p=>p.species)).size;$('gardenCount').textContent=`${state.plants.length} / ${MAX_PLANTS} 株植物 · ${kinds} 种生机`;$('growthLabel').textContent=SEASONS[state.season].title;$('undo').disabled=!history.length;$('redo').disabled=!future.length;const p=state.plants.find(p=>p.id===selectedId);$('inspector').hidden=!p;$('placementInfo').hidden=!!p;ring.visible=!!p;if(p){ring.position.set(p.x,p.level*3.1+.035,p.z);ring.scale.setScalar(p.scale*1.05);$('selectedName').textContent=speciesMap[p.species].name;$('plantScale').value=p.scale;$('scaleValue').value=Math.round(p.scale*100)+'%';$('plantRotation').value=Math.round(p.rotation/TAU*360)%360;$('rotationValue').value=Math.round(p.rotation/TAU*360)%360+'°';}document.querySelectorAll('.plant-card').forEach(b=>b.classList.toggle('selected',b.dataset.species===plantingId));$('selectTool').classList.toggle('active',mode==='select');$('viewTool').classList.toggle('active',mode==='view');$('hint').textContent=mode==='plant'?`正在种植 ${speciesMap[plantingId].name} · 点击楼面任意位置 · Esc 结束`:(p?'拖动选中的植物移动 · 右侧可调整大小与转向':'拖动空白处旋转视角 · 滚轮缩放 · 按住中键拖动平移');}
+function updateUI(){updateTimeUI();const kinds=new Set(state.plants.map(p=>p.species)).size;$('gardenCount').textContent=`${state.plants.length} / ${MAX_PLANTS} 株植物 · ${kinds} 种生机`;$('growthLabel').textContent=SEASONS[state.season].title;$('undo').disabled=!history.length;$('redo').disabled=!future.length;const p=state.plants.find(p=>p.id===selectedId);$('inspector').hidden=!p;$('placementInfo').hidden=!!p;ring.visible=!!p;if(p){ring.position.set(p.x,p.level*3.1+.035,p.z);ring.scale.setScalar(p.scale*1.05);$('selectedName').textContent=speciesMap[p.species].name;$('vinePlacement').hidden=!isTrailingVine(p.species);$('vinePlacement').textContent=isTrailingVine(p.species)?plantMeshes.get(p.id)?.userData.vineMode+' · 拖近二楼边沿可垂落':'';$('plantScale').value=p.scale;$('scaleValue').value=Math.round(p.scale*100)+'%';$('plantRotation').value=Math.round(p.rotation/TAU*360)%360;$('rotationValue').value=Math.round(p.rotation/TAU*360)%360+'°';}document.querySelectorAll('.plant-card').forEach(b=>b.classList.toggle('selected',b.dataset.species===plantingId));$('selectTool').classList.toggle('active',mode==='select');$('viewTool').classList.toggle('active',mode==='view');$('hint').textContent=mode==='plant'?`正在种植 ${speciesMap[plantingId].name} · ${isTrailingVine(plantingId)?'地面铺展，靠近二楼边缘自动垂落':'点击楼面任意位置'} · Esc 结束`:(p?'拖动选中的植物移动 · 右侧可调整大小与转向':'拖动空白处旋转视角 · 滚轮缩放 · 按住中键拖动平移');}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));$('saveStatus').textContent='已自动保存至本机';}catch(e){$('saveStatus').textContent='本机存储不可用，请保存风景';}}
 function checkpoint(){history.push(JSON.stringify(state));if(history.length>35)history.shift();future=[];}
 function finish(){refreshLitter();save();updateUI();}
-function setMode(m,id=null){if(m!=='plant')$('placementInfo').innerHTML='<span>↖</span><div><b>自由布置，没有坑位</b><p>选择植物后点击楼面，可连续种植。</p></div>';mode=m;plantingId=id;selectedId=null;previewRing.visible=false;if(ghost){scene.remove(ghost);ghost.traverse(o=>{if(o.isMesh){o.material.dispose();if(o.isInstancedMesh)o.dispose();}});ghost=null;}if(m==='plant'){ghost=plantTemplate(id).clone(true);applySpecimenTime(ghost,state.time);const age=growthProfile(state.time);ghost.scale.set(age.spread*(state.growth||1),age.height*(state.growth||1),age.spread*(state.growth||1));ghost.traverse(obj=>{if(obj.isMesh){obj.material=obj.material.clone();obj.material.transparent=true;obj.material.opacity=.38;obj.castShadow=false;obj.material.depthWrite=false;}});ghost.visible=false;scene.add(ghost);}updateUI();}
+function setMode(m,id=null){if(m!=='plant')$('placementInfo').innerHTML='<span>↖</span><div><b>自由布置，没有坑位</b><p>选择植物后点击楼面，可连续种植。</p></div>';mode=m;plantingId=id;selectedId=null;previewRing.visible=false;if(ghost){scene.remove(ghost);ghost.traverse(o=>{if(o.isMesh){o.material.dispose();if(o.isInstancedMesh)o.dispose();}});ghost=null;}if(m==='plant'){ghost=plantTemplate(id).clone(true);applySpecimenTime(ghost,state.time);const age=growthProfile(state.time);ghost.scale.set(age.spread*(state.growth||1),age.height*(state.growth||1),age.spread*(state.growth||1));ghost.userData.isGhost=true;applyGhostMaterial(ghost);ghost.visible=false;scene.add(ghost);}updateUI();}
 function select(id){setMode('select');selectedId=id;updateUI();}
 function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.remove('show'),2600);}
 function addPlant(species,pos,scale=1){if(state.plants.length>=MAX_PLANTS){toast(PLANT_LIMIT_MESSAGE);return false;}checkpoint();let p={id:uid(),species,...pos,scale,rotation:Math.random()*TAU};state.plants.push(p);renderPlants();finish();plantFeedback.play().catch(()=>{ $('plantSoundStatus').textContent='浏览器暂未允许播放'; });return true;}
@@ -235,7 +260,7 @@ state.season=normalizeSeason(state.season);state.light=normalizeLook(state.light
 renderPlants();
 
 // A specimen portrait for each card, rendered from the very same 3D model.
-function buildCards(){const thumbScene=new THREE.Scene();thumbScene.add(new THREE.HemisphereLight(0xffffed,0x849078,3));let light=new THREE.DirectionalLight(0xfff2d1,3);light.position.set(-4,8,6);thumbScene.add(light);const cam=new THREE.PerspectiveCamera(34,1,.1,30);const oldRatio=renderer.getPixelRatio();renderer.setPixelRatio(1);renderer.setSize(160,160,false);renderer.shadowMap.enabled=false;for(const s of [...SPECIES.slice(12),...SPECIES.slice(0,12)]){const g=templates[s.id].clone(true);thumbScene.add(g);const bounds=new THREE.Box3().setFromObject(g),size=bounds.getSize(v()),center=bounds.getCenter(v());const extent=Math.max(size.x,size.y,size.z);cam.position.copy(center.clone().add(v(extent*.95,extent*.6,extent*1.7)));cam.lookAt(center);renderer.render(thumbScene,cam);const b=document.createElement('article');b.className='plant-card';b.dataset.species=s.id;b.dataset.category=s.cat;b.innerHTML=`<button class="plant-pick" aria-label="种植${s.name}"><img src="${renderer.domElement.toDataURL()}" alt="${s.name}三维模型"><b>${s.name}</b><small>${s.note}</small></button><button class="plant-info-button" aria-label="了解${s.name}" aria-haspopup="dialog" title="植物小科普">＋</button>`;b.querySelector('.plant-info-button').onclick=()=>showPlantInfo(s,b.querySelector('img').src);b.querySelector('.plant-pick').onclick=()=>{setMode('plant',s.id);$('placementInfo').innerHTML=`<span>＋</span><div><b>${s.name} · ${s.note}</b><p>点击楼面自由种植，拖动空白处仍可旋转。</p></div>`;$('welcome').hidden=true;};$('plantCards').appendChild(b);thumbScene.remove(g);}renderer.shadowMap.enabled=true;renderer.setPixelRatio(oldRatio);}
+function buildCards(){const thumbScene=new THREE.Scene();thumbScene.add(new THREE.HemisphereLight(0xffffed,0x849078,3));let light=new THREE.DirectionalLight(0xfff2d1,3);light.position.set(-4,8,6);thumbScene.add(light);const cam=new THREE.PerspectiveCamera(34,1,.1,30);const oldRatio=renderer.getPixelRatio();renderer.setPixelRatio(1);renderer.setSize(160,160,false);renderer.shadowMap.enabled=false;for(const s of [...SPECIES.slice(12),...SPECIES.slice(0,12)]){const g=templates[s.id].clone(true);thumbScene.add(g);const bounds=new THREE.Box3().setFromObject(g),size=bounds.getSize(v()),center=bounds.getCenter(v());const extent=Math.max(size.x,size.y,size.z);cam.position.copy(center.clone().add(v(extent*.95,extent*.6,extent*1.7)));cam.lookAt(center);renderer.render(thumbScene,cam);const b=document.createElement('article');b.className='plant-card';b.dataset.species=s.id;b.dataset.category=s.cat;b.innerHTML=`<button class="plant-pick" aria-label="种植${s.name}"><img src="${renderer.domElement.toDataURL()}" alt="${s.name}三维模型"><b>${s.name}</b><small>${s.note}</small></button><button class="plant-info-button" aria-label="了解${s.name}" aria-haspopup="dialog" title="植物小科普">＋</button>`;b.querySelector('.plant-info-button').onclick=()=>showPlantInfo(s,b.querySelector('img').src);b.querySelector('.plant-pick').onclick=()=>{setMode('plant',s.id);$('placementInfo').innerHTML=`<span>＋</span><div><b>${s.name} · ${s.note}</b><p>${isTrailingVine(s.id)?'地面铺展；放在二楼外沿或中庭边缘，会顺着边沿垂落。':'点击楼面自由种植，拖动空白处仍可旋转。'}</p></div>`;$('welcome').hidden=true;};$('plantCards').appendChild(b);thumbScene.remove(g);}renderer.shadowMap.enabled=true;renderer.setPixelRatio(oldRatio);}
 buildCards();
 function resize(){const r=$('viewport').getBoundingClientRect();renderer.setSize(r.width,r.height);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();}
 new ResizeObserver(resize).observe($('viewport'));resize();
@@ -244,7 +269,7 @@ document.querySelectorAll('[data-floor]').forEach(b=>b.onclick=()=>setFloor(b.da
 document.querySelectorAll('.catalog-tabs [data-category]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.catalog-tabs [data-category]').forEach(t=>t.classList.toggle('active',t===b));document.querySelectorAll('.plant-card').forEach(c=>c.hidden=b.dataset.category!=='all'&&c.dataset.category!==b.dataset.category);});
 const canvas=renderer.domElement;
 canvas.addEventListener('pointerdown',e=>{if(e.button!==0)return;down={x:e.clientX,y:e.clientY};if(mode==='select'){let id=pickedPlant(e);if(id){select(id);const p=state.plants.find(p=>p.id===id);drag={id,startX:p.x,startZ:p.z,moved:false,level:p.level,offset:null};let pt=floorAtEvent(e,p.level);if(pt)drag.offset={x:p.x-pt.x,z:p.z-pt.z};controls.enabled=false;canvas.setPointerCapture(e.pointerId);}}},true);
-canvas.addEventListener('pointermove',e=>{if(drag){let p=state.plants.find(p=>p.id===drag.id),pt=floorAtEvent(e,drag.level);if(pt&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>4){let x=pt.x+(drag.offset?.x??0),z=pt.z+(drag.offset?.z??0);if(inFloor(x,z,p.level)){if(!drag.moved){checkpoint();drag.moved=true;}p.x=x;p.z=z;applyTransform(p,plantMeshes.get(p.id));updateUI();}}return;}if(mode==='plant'){let pt=floorAtEvent(e);if(pt&&ghost){ghost.position.set(pt.x,pt.level*3.1+.015,pt.z);ghost.visible=true;previewRing.position.set(pt.x,pt.level*3.1+.035,pt.z);previewRing.visible=true;}else{if(ghost)ghost.visible=false;previewRing.visible=false;}}});
+canvas.addEventListener('pointermove',e=>{if(drag){let p=state.plants.find(p=>p.id===drag.id),pt=floorAtEvent(e,drag.level);if(pt&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>4){let x=pt.x+(drag.offset?.x??0),z=pt.z+(drag.offset?.z??0);if(inFloor(x,z,p.level)){if(!drag.moved){checkpoint();drag.moved=true;}p.x=x;p.z=z;applyTransform(p,plantMeshes.get(p.id));updateUI();}}return;}if(mode==='plant'){let pt=floorAtEvent(e);if(pt&&ghost){ghost.userData.plantPose={species:plantingId,...pt,scale:1,rotation:0};applyTransform(ghost.userData.plantPose,ghost);ghost.visible=true;previewRing.position.set(pt.x,pt.level*3.1+.035,pt.z);previewRing.visible=true;}else{if(ghost)ghost.visible=false;previewRing.visible=false;}}});
 canvas.addEventListener('pointerup',e=>{if(e.button!==0)return;if(drag){if(drag.moved)finish();drag=null;controls.enabled=true;down=null;return;}if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<5){if(mode==='plant'){let pt=floorAtEvent(e);if(pt){if(addPlant(plantingId,pt))toast(`${speciesMap[plantingId].name}已种下，可继续自由布置`);}else toast('请点击楼面；一层被挡住时可以切换「一层庭院」');}else if(mode==='select'){const id=pickedPlant(e);select(id);}}down=null;});
 canvas.addEventListener('pointercancel',()=>{if(drag?.moved)finish();drag=null;down=null;controls.enabled=true;});canvas.addEventListener('pointerleave',()=>{if(ghost)ghost.visible=false;previewRing.visible=false;});
 $('selectTool').onclick=()=>setMode('select');$('viewTool').onclick=()=>setMode('view');$('deselect').onclick=()=>select(null);
@@ -317,7 +342,7 @@ function updateTimeUI(){
 }
 function updateGrowth(){
  state.plants.forEach(p=>{const g=plantMeshes.get(p.id);applySpecimenTime(g,state.time);applyTransform(p,g);});
- if(ghost){applySpecimenTime(ghost,state.time);const age=growthProfile(state.time);ghost.scale.set(age.spread*(state.growth||1),age.height*(state.growth||1),age.spread*(state.growth||1));}
+ if(ghost){const wasVisible=ghost.visible;applySpecimenTime(ghost,state.time);if(ghost.userData.plantPose)applyTransform(ghost.userData.plantPose,ghost);else{const age=growthProfile(state.time);ghost.scale.set(age.spread*(state.growth||1),age.height*(state.growth||1),age.spread*(state.growth||1));}ghost.visible=wasVisible;}
  refreshLitter();updateUI();
 }
 let timeEditing=false,timeFrame=0;
