@@ -21,16 +21,37 @@ function leaf(outline,details){
  geometry.userData.leafDetails=details.map(d=>({...d,points:d.points.map(([x,y])=>[x,y,curve(x,y)+.007])}));
  return geometry;
 }
+
+function smoothPothos(){
+ const controls=POTHOS_OUTLINE.map(([x,y])=>new THREE.Vector3(x,y,0));
+ const contour=new THREE.CatmullRomCurve3(controls,true,'centripetal').getPoints(40).slice(0,-1);
+ const positions=[],colors=[],indices=[],rings=5,n=contour.length;
+ const surface=(x,y)=>.065*Math.sin(Math.PI*Math.max(0,y))-.045*x*x-.055*Math.max(0,y)**3;
+ const add=(x,y)=>{
+  positions.push(x,y,surface(x,y));
+  // Colour belongs to the surface itself: no overlapping faces or raised patches.
+  const warp=x+.035*Math.sin(y*17),patch=Math.exp(-(((warp+.17)/.10)**2)-((y-.42)/.34)**2)*.8+Math.exp(-(((warp-.28)/.08)**2)-((y-.18)/.19)**2)*.35;
+  const vein=Math.exp(-((x/.016)**2))*.055,shade=.91+.065*Math.sin(Math.PI*Math.max(0,y));
+  colors.push(shade+patch*.29+vein,shade+patch*.19+vein,shade+patch*.10+vein);
+ };
+ const center={x:0,y:.38};add(center.x,center.y);
+ for(let r=1;r<=rings;r++)for(const p of contour){const t=r/rings;add(center.x+(p.x-center.x)*t,center.y+(p.y-center.y)*t);}
+ for(let j=0;j<n;j++)indices.push(0,1+j,1+(j+1)%n);
+ for(let r=1;r<rings;r++)for(let j=0;j<n;j++){
+  const a=1+(r-1)*n+j,b=1+(r-1)*n+(j+1)%n,c=1+r*n+j,d=1+r*n+(j+1)%n;
+  indices.push(a,c,b,b,c,d);
+ }
+ const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+ geometry.userData.leafOutline=contour.map(p=>[p.x,p.y,surface(p.x,p.y)]);
+ geometry.userData.leafDetails=[{points:[[-.17,.09],[-.22,.16],[-.19,.31],[-.14,.49],[-.08,.66],[-.085,.43],[-.10,.24]].map(([x,y])=>[x,y,surface(x,y)]),multiplier:[1.20,1.13,1.06]}];
+ return geometry;
+}
 export function createVineLeaves(){
  const ivy=leaf(IVY_OUTLINE,[
   {points:vein([0,.03],[0,.88],.012),multiplier:[2.1,1.8,1.6]},
   {points:vein([0,.19],[-.45,.52]),multiplier:[1.8,1.65,1.45]},
   {points:vein([0,.19],[.45,.52]),multiplier:[1.8,1.65,1.45]},
  ]);
- const pothos=leaf(POTHOS_OUTLINE,[
-  {points:[[-.10,.09],[-.24,.04],[-.34,.16],[-.23,.25],[-.30,.34],[-.16,.40],[-.10,.59],[-.035,.75],[-.04,.43],[.015,.26]],multiplier:[3.1,1.85,.7]},
-  {points:[[.20,.04],[.35,.02],[.40,.18],[.31,.30],[.33,.40],[.20,.45],[.23,.24],[.16,.15]],multiplier:[2.5,1.7,.8]},
-  {points:vein([0,.01],[0,.97],.012),multiplier:[1.5,1.35,.9]},
- ]);
+ const pothos=smoothPothos();
  return {ivy,pothos};
 }
