@@ -44,7 +44,7 @@ try{const surface=document.createElement('canvas'),context=surface.getContext('w
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
 $('viewport').appendChild(renderer.domElement);
 const scene=new THREE.Scene();scene.fog=new THREE.Fog(0xe9eddf,38,75);
-const camera=new THREE.PerspectiveCamera(33,1,.1,100);camera.position.set(15,12,17);
+const camera=new THREE.PerspectiveCamera(33,1,.1,350);camera.position.set(15,12,17);
 const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,1.9,0);controls.enableDamping=true;controls.dampingFactor=.08;controls.minDistance=8;controls.maxDistance=34;controls.minPolarAngle=.15;controls.maxPolarAngle=Math.PI*.485;controls.enablePan=true;controls.panSpeed=.6;controls.rotateSpeed=.7;controls.zoomSpeed=.7;
 const ambient=new THREE.HemisphereLight(0xffffec,0x8f9f86,2.1);scene.add(ambient);
 const sun=new THREE.DirectionalLight(0xfff5d5,3.6);sun.position.set(-8,15,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:45});sun.shadow.normalBias=.02;sun.shadow.bias=-.00015;sun.shadow.radius=2.5;scene.add(sun);
@@ -251,7 +251,12 @@ $('clearGarden').onclick=()=>{checkpoint();state.plants=[];selectedId=null;rende
 $('restoreGarden').onclick=()=>{checkpoint();demo();setRain(false);selectedId=null;applySeason();finish();toast('示范花园已恢复 · 可继续自由修改');};
 function rotateView(angle){const offset=camera.position.clone().sub(controls.target);offset.applyAxisAngle(up,angle);camera.position.copy(controls.target.clone().add(offset));controls.update();}
 $('rotateLeft').onclick=()=>rotateView(-Math.PI/6);$('rotateRight').onclick=()=>rotateView(Math.PI/6);
-$('homeView').onclick=()=>{camera.position.set(15,12,17);controls.target.set(0,1.9,0);controls.update();};
+function frameEnvironment(){
+ if(normalizeWorld(state.world)==='white'){camera.position.set(15,12,17);controls.target.set(0,1.9,0);}
+ else{camera.position.set(17,8.8,21);controls.target.set(0,1.7,0);}
+ controls.update();
+}
+$('homeView').onclick=frameEnvironment;
 function zoom(f){let off=camera.position.clone().sub(controls.target).multiplyScalar(f);off.setLength(THREE.MathUtils.clamp(off.length(),8,34));camera.position.copy(controls.target.clone().add(off));controls.update();}
 $('zoomIn').onclick=()=>zoom(.85);$('zoomOut').onclick=()=>zoom(1.18);
 let currentLook;
@@ -259,7 +264,7 @@ function setLight(type){
  state.light=normalizeLook(type);state.photoStrength=state.light==='day'?1:normalizeStrength(state.photoStrength);
  currentLook=photoLook(state.season,state.light,state.photoStrength);
  const world=WORLDS[normalizeWorld(state.world)];
- if(state.light==='day'){currentLook={...currentLook,top:world.sky,bottom:world.ground,ground:world.ground};}
+ if(state.light==='day'){currentLook={...currentLook,top:world.sky,bottom:world.sky,ground:world.ground,fogNear:state.world==='mountain'?35:24,fogFar:state.world==='mountain'?115:95};}
  const look=currentLook;
  document.body.dataset.light=state.light;
  scene.userData.photoLook=look;scene.userData.backdropColor=look.bottom;
@@ -345,7 +350,7 @@ function applyWorld(){
  document.querySelectorAll('[data-building]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.building===state.building)));
 }
 for(const button of document.querySelectorAll('[data-world]'))button.onclick=()=>{
- if(state.world===button.dataset.world)return;checkpoint();state.world=button.dataset.world;applySeason();finish();toast('已来到'+WORLDS[state.world].name+' · 植物布置已保留');
+ if(state.world===button.dataset.world)return;checkpoint();state.world=button.dataset.world;applySeason();frameEnvironment();finish();toast('已来到'+WORLDS[state.world].name+' · 植物布置已保留');
 };
 for(const button of document.querySelectorAll('[data-building]'))button.onclick=()=>{
  if(state.building===button.dataset.building)return;checkpoint();state.building=button.dataset.building;applySeason();finish();toast('已切换'+BUILDINGS[state.building]+' · 两层植物位置已保留');
@@ -360,7 +365,7 @@ document.querySelectorAll('[data-season-choice]').forEach(button=>button.onclick
  const next=button.dataset.seasonChoice;if(next===state.season)return;
  checkpoint();state.season=next;applySeason();finish();toast(SEASONS[next].title+' · '+SEASONS[next].note);
 });
-applySeason();
+applySeason();frameEnvironment();
 // A draw is a draft. Only accepting it changes state, history or local storage.
 $('randomGarden').onclick=()=>{
  const button=$('randomGarden');button.disabled=true;
