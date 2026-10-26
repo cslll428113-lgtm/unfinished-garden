@@ -99,7 +99,7 @@ for(let x=-4;x<=4;x+=2){line([v(x,.008,-3),v(x,.008,3)]);line([v(x,3.108,1),v(x,
 for(let i=0;i<18;i++){let x=range(-4.8,4.8),z=range(-2.9,2.9);let y=i%2?3.11:.01;if(y>1&&Math.abs(x)<1.4&&Math.abs(z)<.96)continue;line([v(x,y,z),v(x+.12,y,z+.13),v(x+.11,y,z+.25),v(x+.28,y,z+.36)],seamMat,y>1?upper:architecture);}
 
  const surfaces=[];architecture.traverse(o=>{if(o.isMesh&&o.geometry.type==='BoxGeometry')surfaces.push(o);});
- for(const surface of surfaces){const {width,height,depth}=surface.geometry.parameters;const cap=new THREE.Mesh(new THREE.BoxGeometry(width,.035,depth),snowMaterial);cap.position.copy(surface.position);cap.position.y+=height/2+.0175;cap.receiveShadow=true;cap.visible=false;surface.parent.add(cap);snowCaps.push(cap);}
+ for(const surface of surfaces){const {width,height,depth}=surface.geometry.parameters;const cap=new THREE.Mesh(new THREE.BoxGeometry(width+.06,.085,depth+.06),snowMaterial);cap.position.copy(surface.position);cap.position.y+=height/2+.0425;cap.receiveShadow=true;cap.visible=false;surface.parent.add(cap);snowCaps.push(cap);}
  architecture.add(litterGround);upper.add(litterUpper);upper.visible=floor!=='0';builtArchitecture=type;
 }
 function line(points,mat=seamMat,parent=architecture){let l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),mat);parent.add(l);return l;}
@@ -260,11 +260,13 @@ $('homeView').onclick=frameEnvironment;
 function zoom(f){let off=camera.position.clone().sub(controls.target).multiplyScalar(f);off.setLength(THREE.MathUtils.clamp(off.length(),8,34));camera.position.copy(controls.target.clone().add(off));controls.update();}
 $('zoomIn').onclick=()=>zoom(.85);$('zoomOut').onclick=()=>zoom(1.18);
 let currentLook;
+function isSnowWeather(){return state.world==='snow'||state.season==='winter';}
 function setLight(type){
  state.light=normalizeLook(type);state.photoStrength=state.light==='day'?1:normalizeStrength(state.photoStrength);
  currentLook=photoLook(state.season,state.light,state.photoStrength);
  const world=WORLDS[normalizeWorld(state.world)];
  if(state.light==='day'){currentLook={...currentLook,top:world.sky,bottom:world.sky,ground:world.ground,fogNear:state.world==='mountain'?35:24,fogFar:state.world==='mountain'?115:95};}
+ if(state.world==='snow'&&state.light==='day')currentLook={...currentLook,top:'#d9e4ee',bottom:'#e6edf2',sky:'#c7dbf3',bounce:'#819ab6',sun:'#fff1dc',sunPower:2.5,ambient:1.2,fill:'#c4dcf5',fillPower:.45,position:[-12,8,7],exposure:1.04,fogNear:32,fogFar:105,cpuDirectionalMix:1,note:'冬日斜阳 · 蓝灰雪影与柔软积雪'};
  const look=currentLook;
  document.body.dataset.light=state.light;
  scene.userData.photoLook=look;scene.userData.backdropColor=look.bottom;
@@ -303,23 +305,23 @@ const rainN=500,rainPositions=new Float32Array(rainN*6);for(let i=0;i<rainN;i++)
 // Weather is an explicit toggle, independent of frame rate and garden undo.
 function setRain(enabled){
  isRaining=enabled;
- soundscape.set(normalizeWorld(state.world),enabled,state.season==='winter');
+ soundscape.set(normalizeWorld(state.world),enabled,isSnowWeather());
  rainLines.visible=enabled;
  $('rain').classList.toggle('active',enabled);
  $('rain').setAttribute('aria-pressed',String(enabled));
-  const snow=state.season==='winter',word=snow?'雪':'雨';
+  const snow=isSnowWeather(),word=snow?'雪':'雨';
  $('rain').title=enabled?'停止下'+word:'开始下'+word;
  $('rain').innerHTML=(snow?'❄':'☂')+' <span>'+(enabled?'停止下'+word:'下一场'+word)+'</span>';
  rainLines.material.color.setHex(snow?0xffffff:0x90aba7);
  rainLines.material.opacity=snow?.9:.45;
  rainLines.material.linewidth=snow?2:1;
  rainGeo.setDrawRange(0,(snow?300:rainN)*2);
- for(let i=0;i<rainN;i++){const n=i*6;rainPositions[n+3]=rainPositions[n]+(snow?.035:-.035);rainPositions[n+4]=rainPositions[n+1]-(snow?.035:.23);rainPositions[n+5]=rainPositions[n+2];}
+ for(let i=0;i<rainN;i++){const n=i*6;rainPositions[n+3]=rainPositions[n]+(snow?.055:-.035);rainPositions[n+4]=rainPositions[n+1]-(snow?.055:.23);rainPositions[n+5]=rainPositions[n+2];}
  rainGeo.attributes.position.needsUpdate=true;
 }
 rainLines.frustumCulled=false;
-setRain(false);
-$('rain').onclick=()=>{setRain(!isRaining);applyWorld();const word=state.season==='winter'?'雪':'雨';toast(isRaining?word+'落下了 · 再点一次即可停止':word+'停了，继续布置你的花园吧');};
+setRain(state.world==='snow');
+$('rain').onclick=()=>{setRain(!isRaining);applyWorld();const word=isSnowWeather()?'雪':'雨';toast(isRaining?word+'落下了 · 再点一次即可停止':word+'停了，继续布置你的花园吧');};
 function applySeason(){
  state.world=normalizeWorld(state.world);state.building=normalizeBuilding(state.building);
  buildArchitecture(state.building);applyWorld();
@@ -345,12 +347,12 @@ let appliedWorld=null;
 function applyWorld(){
  const world=WORLDS[state.world];if(appliedWorld!==state.world){worldScene.set(state.world);appliedWorld=state.world;}
  document.body.dataset.world=state.world;
- $('worldNote').textContent=world.note;$('soundNote').textContent=world.sound+(isRaining?(state.season==='winter'?' · 落雪':' · 雨声'):'');
+ $('worldNote').textContent=world.note;$('soundNote').textContent=world.sound+(isRaining?(isSnowWeather()?' · 落雪':' · 雨声'):'');
  document.querySelectorAll('[data-world]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.world===state.world)));
  document.querySelectorAll('[data-building]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.building===state.building)));
 }
 for(const button of document.querySelectorAll('[data-world]'))button.onclick=()=>{
- if(state.world===button.dataset.world)return;checkpoint();state.world=button.dataset.world;applySeason();frameEnvironment();finish();toast('已来到'+WORLDS[state.world].name+' · 植物布置已保留');
+ if(state.world===button.dataset.world)return;checkpoint();state.world=button.dataset.world;if(state.world==='snow')setRain(true);applySeason();frameEnvironment();finish();toast('已来到'+WORLDS[state.world].name+' · 植物布置已保留');
 };
 for(const button of document.querySelectorAll('[data-building]'))button.onclick=()=>{
  if(state.building===button.dataset.building)return;checkpoint();state.building=button.dataset.building;applySeason();finish();toast('已切换'+BUILDINGS[state.building]+' · 两层植物位置已保留');
@@ -392,5 +394,5 @@ $('capture').onclick=()=>{
  }finally{ring.visible=wasRing;previewRing.visible=wasPreview;if(ghost)ghost.visible=wasGhost;}
 };
 window.addEventListener('keydown',e=>{if(e.target.matches('input,textarea')||$('aboutDialog').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(e.key==='Escape'){photoPanel(false);setMode('view');}else if(e.key.toLowerCase()==='v')setMode('select');else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}});
-let last=performance.now();function animate(now){requestAnimationFrame(animate);let dt=Math.min((now-last)/1000,.05);last=now;controls.update();if(isRaining){for(let i=0;i<rainN;i++){let n=i*6,snow=state.season==='winter',speed=snow?.8:6;rainPositions[n+1]-=dt*speed;rainPositions[n+4]-=dt*speed;if(snow){const drift=Math.sin(now*.001+i)*dt*.18;rainPositions[n]+=drift;rainPositions[n+3]+=drift;}if(rainPositions[n+1]<-.2){rainPositions[n+1]=12;rainPositions[n+4]=12-(snow?.035:.23);}}rainGeo.attributes.position.needsUpdate=true;}renderer.render(scene,camera);}
+let last=performance.now();function animate(now){requestAnimationFrame(animate);let dt=Math.min((now-last)/1000,.05);last=now;controls.update();if(isRaining){for(let i=0;i<rainN;i++){let n=i*6,snow=isSnowWeather(),speed=snow?.8:6;rainPositions[n+1]-=dt*speed;rainPositions[n+4]-=dt*speed;if(snow){const drift=Math.sin(now*.001+i)*dt*.18;rainPositions[n]+=drift;rainPositions[n+3]+=drift;}if(rainPositions[n+1]<-.2){rainPositions[n+1]=12;rainPositions[n+4]=12-(snow?.055:.23);}}rainGeo.attributes.position.needsUpdate=true;}renderer.render(scene,camera);}
 requestAnimationFrame(animate);$('loading').style.opacity='0';setTimeout(()=>$('loading').hidden=true,650);save();updateUI();

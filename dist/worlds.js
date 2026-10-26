@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export const WORLDS={
  white:{name:'纯白',note:'留白与树影，让建筑成为主角。',sky:'#ffffff',ground:'#fafafa',sound:'轻风'},
- snow:{name:'雪地',note:'雪坡与远山之间，一座安静的冬日花园。',sky:'#e4edf0',ground:'#edf2f2',sound:'雪原风声'},
+ snow:{name:'雪地',note:'风拂过积雪与疏枝，花园在雪原里慢慢生长。',sky:'#e4edf0',ground:'#edf2f2',sound:'雪原风声'},
  coast:{name:'海边',note:'沿着曲折的沙岸，听潮水走进花园。',sky:'#e3eff0',ground:'#e8ddc4',sound:'海浪与海风'},
  mountain:{name:'山里',note:'花园落在山谷里，远山与林丛渐隐于雾。',sky:'#e3ece8',ground:'#bcc9ad',sound:'山风与鸟鸣'}
 };
@@ -67,6 +67,42 @@ export function createWorld(scene){
   const rocks=batch(),rock=rockGeometry();for(const [cx,cz,count] of [[15,-17,5],[22,19,4],[10,-32,4]])for(let i=0;i<count;i++){const x=cx+(random()-.5)*3,z=cz+(random()-.5)*4,s=.35+random()*.95;rocks.add(rock,[x,-.52,z],[s, s*(.6+random()*.5),s*.8],i%2?0x899d97:0xa3aaa0,random()*6.28);}rocks.finish(-700);rock.dispose();
   const tufts=[];for(let i=0;i<36;i++){const z=-23+random()*46,x=shoreAt(z)-2.5-random()*3;if(Math.abs(x)<6.8&&Math.abs(z)<4.5)continue;tufts.push([x,-.29,z,.65+random()*.5]);}grasses(tufts,true);
  }
+
+ // Snow is its own continuous landscape, with wind-shaped banks and bare trees.
+ function snowGarden(){
+  function height(x,z){
+   const edge=Math.max(Math.abs(x)-6.9,Math.abs(z)-4.5),fade=smooth(0,3,edge);
+   const drift=.19+.24*(.5+.5*Math.sin(x*.31+z*.21))+.23*(.5+.5*Math.sin(z*.42-x*.14));
+   const banks=.62*Math.exp(-(((x+9)/3.7)**2+((z-2)/8)**2))+.5*Math.exp(-(((x-3)/8)**2+((z+8)/3.6)**2));
+   return -.29+fade*(drift+banks+Math.max(0,mountainHeight(x,z,true)+.29)*.28);
+  }
+  const coords=axis(150,88,1.9);
+  const terrain=mesh(grid(coords,coords,(x,z)=>[x,height(x,z),z],(x,y,z)=>{
+   const dx=(height(x+.2,z)-height(x-.2,z))/.4,dz=(height(x,z+.2)-height(x,z-.2))/.4;
+   const shade=clamp(.16+dx*.65-dz*.45+.05*Math.sin(x*.3+z*.4),0,.68);
+   return blend('#f5f6f5','#9aafc7',shade);
+  }),{vertices:true,order:-900});terrain.name='continuous-snowdrifts';
+  const trees=batch();
+  function branch(a,b,r,tint){
+   const start=new THREE.Vector3(...a),end=new THREE.Vector3(...b),v=end.clone().sub(start);
+   const g=new THREE.CylinderGeometry(r*.48,r,v.length(),5);
+   g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),v.normalize()));
+   g.translate(...start.add(end).multiplyScalar(.5).toArray());
+   trees.add(g,[0,0,0],[1,1,1],tint);g.dispose();
+  }
+  for(const [x,z,h] of [[-10,-7,4.4],[-13,-9,3.2],[-8,-12,3.8],[7,-14,4.2],[11,-17,3.1],[-16,7,3.7],[18,-7,3.5],[23,-22,3.9]]){
+   const y=height(x,z),lean=.25+random()*.25;
+   branch([x,y,z],[x+lean,y+h,z],.065,0x7a8086);
+   for(let b=0;b<7;b++){
+    const a=b*2.4+random()*.3,t=.38+b*.075,len=h*(.33-b*.023);
+    const start=[x+lean*t,y+h*t,z],end=[start[0]+Math.cos(a)*len,y+h*t+len*.65,z+Math.sin(a)*len];
+    branch(start,end,.025,0x818994);
+    for(let k=0;k<2;k++){const t2=.55+k*.24,tip=start.map((v,i)=>v+(end[i]-v)*t2);branch(tip,[tip[0]+Math.cos(a+.7)*len*.32,tip[1]+len*.4,tip[2]+Math.sin(a+.7)*len*.32],.012,0x9098a1);}
+   }
+  }
+  const wood=trees.finish(-700);wood.name='bare-winter-trees';wood.castShadow=true;
+  const tufts=[];for(let i=0;i<12;i++){const a=random()*6.28,r=9+random()*7,x=Math.cos(a)*r,z=Math.sin(a)*r;tufts.push([x,height(x,z)-.04,z,.4+random()*.25]);}grasses(tufts,true);
+ }
  function mountains(snow){
   const coords=axis(150,66,1.65);
   mesh(grid(coords,coords,(x,z)=>[x,mountainHeight(x,z,snow),z],(x,y,z)=>{
@@ -92,6 +128,6 @@ export function createWorld(scene){
  }
  return {root,set(value){
   for(const o of [...root.children]){root.remove(o);o.geometry.dispose();}for(const m of materials)m.dispose();materials.clear();random=rng(83);
-  value=normalizeWorld(value);root.rotation.y=value==='coast'?Math.PI*.75:0;if(value==='coast')coast();else if(value==='mountain'||value==='snow')mountains(value==='snow');
+  value=normalizeWorld(value);root.rotation.y=value==='coast'?Math.PI*.75:0;if(value==='coast')coast();else if(value==='snow')snowGarden();else if(value==='mountain')mountains(false);
  }};
 }
