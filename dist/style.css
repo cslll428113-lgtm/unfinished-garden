@@ -44,3 +44,5 @@ body[data-season="winter"][data-light="dusk"] .scene-title p,body[data-season="w
 #viewport canvas.erasing{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='m17 3 7 7-12 12H7l-4-4a2 2 0 0 1 0-3L15 3Z' fill='%23fbf7ef' stroke='%23895c46' stroke-width='1.8'/%3E%3Cpath d='m8 10 8 8' stroke='%23895c46' stroke-width='1.8'/%3E%3C/svg%3E") 5 21,crosshair}
 .bottom-toolbar{max-width:calc(100% - 24px)}
 @media(max-width:850px){.toolset #selectTool span,.toolset #viewTool span{display:none}.toolset button{padding:0 6px}.bottom-toolbar{gap:0}.bottom-toolbar .divider{margin:0 3px}}
+
+#viewport canvas.erasing.erase-orbit{cursor:grab}#viewport canvas.erasing.erase-orbit:active{cursor:grabbing}
