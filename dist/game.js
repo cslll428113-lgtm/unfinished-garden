@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CanvasRenderer } from './canvas-renderer.js';
 import { PHOTO_LOOKS, normalizeLook, normalizeStrength, photoLook, paintPhoto } from './photo-looks.js';
+import { WORLDS, BUILDINGS, normalizeWorld, normalizeBuilding, createWorld } from './worlds.js';
+import { Soundscape } from './soundscape.js';
 import { generateGarden } from './random-garden.js';
 import { SEASONS, DECIDUOUS, normalizeSeason, seasonalLook } from './seasons.js';
 
@@ -35,6 +37,7 @@ let state={plants:[],growth:1,season:'spring',light:'day'},selectedId=null,plant
 let history=[],future=[],plantMeshes=new Map(),templates={},ghost=null,drag=null,down=null,isRaining=false;
 let seed=42;function rand(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;}function range(a,b){return a+(b-a)*rand();}
 function uid(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+const soundscape=new Soundscape();
 const v=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 let renderer;
 try{const surface=document.createElement('canvas'),context=surface.getContext('webgl2',{antialias:true,alpha:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});renderer=context?new THREE.WebGLRenderer({canvas:surface,context,antialias:true,alpha:true,preserveDrawingBuffer:true}):new CanvasRenderer();}catch(e){renderer=new CanvasRenderer();}
@@ -49,36 +52,60 @@ const fill=new THREE.DirectionalLight(0xd9e9d7,.7);fill.position.set(8,6,-8);sce
 function concreteTexture(){const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle='#e2e3dd';ctx.fillRect(0,0,256,256);for(let i=0;i<14000;i++){const n=Math.floor(range(100,200));ctx.fillStyle=`rgba(${n},${n},${n-10},${range(.02,.1)})`;ctx.fillRect(rand()*256,rand()*256,rand()*2+.5,rand()*2+.5);}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(2,2);t.colorSpace=THREE.SRGBColorSpace;return t;}
 const concrete=new THREE.MeshStandardMaterial({color:0xe5e6de,map:concreteTexture(),roughness:1});
 const concreteDark=new THREE.MeshStandardMaterial({color:0xb5b9a4,roughness:1});const stoneMat=new THREE.MeshStandardMaterial({color:0xb9bba8,roughness:1});const mossMat=new THREE.MeshStandardMaterial({color:0x919a6b,roughness:1});const woodMat=new THREE.MeshStandardMaterial({color:0x857b60,roughness:1});
-const architecture=new THREE.Group(),upper=new THREE.Group();scene.add(architecture);architecture.add(upper);
+const architecture=new THREE.Group();let upper=new THREE.Group();scene.add(architecture);
+const snowCaps=[],snowMaterial=new THREE.MeshStandardMaterial({color:0xf4f7f7,roughness:1});
+const litterGround=new THREE.Group(),litterUpper=new THREE.Group();
+const seamMat=new THREE.LineBasicMaterial({color:0x9eaa95,transparent:true,opacity:.2});
+const pondMaterial=new THREE.MeshStandardMaterial({color:0x9bb6a7,roughness:.2,metalness:.12,transparent:true,opacity:.72});
+let builtArchitecture=null;
 const slabs=[];
 function box(w,h,d,x,y,z,mat=concrete,parent=architecture){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 function slab(w,d,x,z,y,parent){let m=box(w,.23,d,x,y-.115,z,concrete,parent);slabs.push(m);return m;}
+function buildArchitecture(type){
+ type=normalizeBuilding(type);if(builtArchitecture===type)return;
+ architecture.remove(litterGround);upper.remove(litterUpper);
+ architecture.traverse(o=>{if(o.geometry)o.geometry.dispose();});architecture.clear();slabs.length=0;snowCaps.length=0;
+ upper=new THREE.Group();architecture.add(upper);
 slab(10.4,6.5,0,0,0,architecture);
 // Only two usable levels. The upper level is an open terrace, not an empty third story.
 slab(10.4,2.3,0,-2.1,3.1,upper);slab(10.4,2.3,0,2.1,3.1,upper);slab(3.8,1.9,-3.3,0,3.1,upper);slab(3.8,1.9,3.3,0,3.1,upper);
+if(type==='frame'){
 for(const x of [-4.85,0,4.85])for(const z of [-2.95,2.95]){box(.3,2.95,.3,x,1.475,z);box(.42,.27,6.4,x,2.82,0);}
 for(const z of [-2.95,2.95])box(10.25,.28,.36,0,2.82,z);
 // Incomplete walls preserve the sense of an abandoned structure.
 box(4.3,1.6,.16,-2.7,.8,-3.05);box(1.55,.7,.16,3.95,.35,-3.05);
 box(.16,.85,2,-5.04,.425,-1.92);box(2.25,.45,.16,-3.8,3.325,-3.05,concrete,upper);
 box(.16,.7,2.1,-5.04,3.45,-1.9,concrete,upper);
+}else if(type==='arcade'){
+ for(const x of [-4.85,-2.4,0,2.4,4.85])for(const z of [-2.95,2.95])box(.21,2.95,.21,x,1.475,z);
+ for(const z of [-2.95,2.95])box(10.3,.2,.3,0,2.9,z);
+ for(const x of [-4.85,4.85])box(.3,.2,6.3,x,2.9,0);
+ for(const x of [-4.85,-2.4,0,2.4,4.85]){box(.16,1.7,.16,x,3.95,-2.95,concrete,upper);box(.18,.16,2.1,x,4.8,-2.1,concrete,upper);}
+ box(10.3,.18,.2,0,4.8,-2.95,concrete,upper);box(10.3,.18,.2,0,4.8,-1.15,concrete,upper);
+}else{
+ for(const x of [-4.85,4.85])for(const z of [-2.95,2.95])box(.52,2.95,.52,x,1.475,z);
+ for(const z of [-2.95,2.95])box(10.3,.32,.42,0,2.85,z);
+ for(const x of [-4.85,4.85])box(.42,.32,6.2,x,2.85,0);
+ for(let i=0;i<9;i++){const h=[1.2,1.7,2.15,1.3,.7,1.1,1.5,.95,.5][i];box(1.08,h,.28,-4.35+i*1.08,h/2,-2.95);}
+ for(let i=0;i<4;i++){const h=[.4,.65,.95,.55][i];box(1.05,h,.25,-4.3+i*1.05,3.1+h/2,-2.95,concrete,upper);}
+ box(.28,1.4,2.4,-4.95,.7,-1.6);box(.28,.6,2.1,4.95,.3,1.7);
+}
 for(let i=0;i<17;i++)box(1.1,.19,0.39,5.8,.09+i*.183,3.15-i*.36);
 box(1.1,.22,.75,5.8,2.99,-3.0);
 // Fine joints and traces in the concrete, without soil piles or planter boxes.
-const seamMat=new THREE.LineBasicMaterial({color:0x9eaa95,transparent:true,opacity:.2});
-function line(points,mat=seamMat,parent=architecture){let l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),mat);parent.add(l);return l;}
+
+
 for(let x=-4;x<=4;x+=2){line([v(x,.008,-3),v(x,.008,3)]);line([v(x,3.108,1),v(x,3.108,3)],seamMat,upper);line([v(x,3.108,-3),v(x,3.108,-1)],seamMat,upper);}
 for(let i=0;i<18;i++){let x=range(-4.8,4.8),z=range(-2.9,2.9);let y=i%2?3.11:.01;if(y>1&&Math.abs(x)<1.4&&Math.abs(z)<.96)continue;line([v(x,y,z),v(x+.12,y,z+.13),v(x+.11,y,z+.25),v(x+.28,y,z+.36)],seamMat,y>1?upper:architecture);}
-const ground=new THREE.Mesh(new THREE.CircleGeometry(60,80),new THREE.MeshStandardMaterial({color:0xe5e8d9,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.26;ground.receiveShadow=true;scene.add(ground);
-// Subtle grass and moss around the foundation.
-const mossGeo=new THREE.CircleGeometry(1,12);for(let i=0;i<38;i++){let a=rand()*TAU,x=Math.cos(a)*range(5.2,5.7),z=Math.sin(a)*range(3.25,3.9);let m=new THREE.Mesh(mossGeo,mossMat);m.rotation.x=-Math.PI/2;m.scale.set(range(.12,.45),range(.08,.2),1);m.position.set(x,-.245,z);scene.add(m);}
-const pondMaterial=new THREE.MeshStandardMaterial({color:0x9bb6a7,roughness:.2,metalness:.12,transparent:true,opacity:.72});
-for(let i=0;i<3;i++){let m=new THREE.Mesh(new THREE.CircleGeometry(1,40),pondMaterial);m.rotation.x=-Math.PI/2;m.scale.set(.6+i*.25,.16+i*.07,1);m.position.set(-3+i*2,.012,1.85-i*.65);architecture.add(m);}
-// Snow follows each existing slab, wall and stair; it never fills the courtyard opening.
-const snowCaps=[],snowMaterial=new THREE.MeshStandardMaterial({color:0xf4f7f7,roughness:1});
-const snowSurfaces=[];architecture.traverse(o=>{if(o.isMesh&&o.geometry.type==='BoxGeometry')snowSurfaces.push(o);});
-for(const surface of snowSurfaces){const {width,height,depth}=surface.geometry.parameters;const cap=new THREE.Mesh(new THREE.BoxGeometry(width,.035,depth),snowMaterial);cap.position.copy(surface.position);cap.position.y+=height/2+.0175;cap.receiveShadow=true;cap.visible=false;surface.parent.add(cap);snowCaps.push(cap);}
-const litterGround=new THREE.Group(),litterUpper=new THREE.Group();architecture.add(litterGround);upper.add(litterUpper);
+
+ const surfaces=[];architecture.traverse(o=>{if(o.isMesh&&o.geometry.type==='BoxGeometry')surfaces.push(o);});
+ for(const surface of surfaces){const {width,height,depth}=surface.geometry.parameters;const cap=new THREE.Mesh(new THREE.BoxGeometry(width,.035,depth),snowMaterial);cap.position.copy(surface.position);cap.position.y+=height/2+.0175;cap.receiveShadow=true;cap.visible=false;surface.parent.add(cap);snowCaps.push(cap);}
+ architecture.add(litterGround);upper.add(litterUpper);upper.visible=floor!=='0';builtArchitecture=type;
+}
+function line(points,mat=seamMat,parent=architecture){let l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),mat);parent.add(l);return l;}
+const ground=new THREE.Mesh(new THREE.CircleGeometry(60,80),new THREE.MeshStandardMaterial({color:0xfafafa,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.26;ground.receiveShadow=true;scene.add(ground);
+const worldScene=createWorld(scene);
+buildArchitecture('frame');
 
 // Botanical geometry. Each specimen is instanced to keep a dense garden light.
 function leafGeometry(){const g=new THREE.BufferGeometry(),pos=[],norm=[],uv=[],idx=[];let n=10;for(let i=0;i<=n;i++){let t=i/n,w=Math.sin(t*Math.PI)*.48;for(let j=0;j<3;j++){let x=(j-1)*w;pos.push(x,t,.13*Math.sin(Math.PI*t)-Math.abs(x)*.16);uv.push(j/2,t);}}for(let i=0;i<n;i++)for(let j=0;j<2;j++){let a=i*3+j;idx.push(a,a+1,a+3,a+1,a+4,a+3);}g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;}
@@ -188,12 +215,13 @@ function finish(){refreshLitter();save();updateUI();}
 function setMode(m,id=null){if(m!=='plant')$('placementInfo').innerHTML='<span>↖</span><div><b>自由布置，没有坑位</b><p>选择植物后点击楼面，可连续种植。</p></div>';mode=m;plantingId=id;selectedId=null;previewRing.visible=false;if(ghost){scene.remove(ghost);ghost.traverse(o=>{if(o.isMesh){o.material.dispose();if(o.isInstancedMesh)o.dispose();}});ghost=null;}if(m==='plant'){ghost=plantTemplate(id).clone(true);ghost.traverse(obj=>{if(obj.isMesh){obj.material=obj.material.clone();obj.material.transparent=true;obj.material.opacity=.38;obj.castShadow=false;obj.material.depthWrite=false;}});ghost.visible=false;scene.add(ghost);}updateUI();}
 function select(id){setMode('select');selectedId=id;updateUI();}
 function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.remove('show'),2600);}
-function addPlant(species,pos,scale=1){if(state.plants.length>=MAX_PLANTS){toast(PLANT_LIMIT_MESSAGE);return false;}checkpoint();let p={id:uid(),species,...pos,scale,rotation:Math.random()*TAU};state.plants.push(p);renderPlants();finish();return true;}
+function addPlant(species,pos,scale=1){if(state.plants.length>=MAX_PLANTS){toast(PLANT_LIMIT_MESSAGE);return false;}checkpoint();let p={id:uid(),species,...pos,scale,rotation:Math.random()*TAU};state.plants.push(p);renderPlants();finish();soundscape.plant();return true;}
 function demo(){const data=[
  ['banyan',-3.7,-1.8,0,.85],['maple',3.4,-1.8,0,.87],['fern',-4.1,1.9,0,1.1],['fern',-3.1,2.1,0,.8],['hosta',-4.2,.6,0,1.1],['monstera',-2.7,-1.7,0,.9],['hydrangea',-3.9,2.7,0,.8],['fern',-2.2,2.65,0,.8],['grass',3.6,2.15,0,1.1],['grass',4.3,2.3,0,.8],['salvia',2.9,2.8,0,.9],['hosta',3.5,.7,0,1.2],['fern',3.6,-.4,0,.8],['monstera',.7,-2.4,0,.85],['hosta',1.6,-2.5,0,.9],
  ['sakura',-3.6,-1.9,1,.85],['magnolia',2.7,-1.9,1,.85],['bougain',4.2,-2.4,1,.9],['bougain',4.1,2.4,1,.8],['hydrangea',-3.5,1.8,1,.8],['hydrangea',-2.6,2.4,1,.7],['allium',-3.6,-.1,1,.8],['salvia',-4.3,-.35,1,.65],['fern',-4.2,-2.2,1,.85],['hosta',-2.4,-2.55,1,.9],['muhly',1.2,-2.5,1,.9],['fern',3.6,-1.4,1,.75],['monstera',2.6,1.65,1,.65],['hosta',3.25,2.5,1,.85],['ivy',-4.5,2.95,1,.95],['wisteria',-3.65,3,1,.75],['pothos',-.6,3.0,1,.95],['ivy',.1,3,1,.8],['pothos',4.8,.5,1,.8],['ivy',-4.95,-.35,1,.8],['tulip',.5,2.3,1,.9],['daisy',-.2,2.1,1,.9],['echeveria',2.1,2.7,1,.95]
  ];state={plants:data.map((d,i)=>({id:uid()+i,species:d[0],x:d[1],z:d[2],level:d[3],scale:d[4],rotation:i*2.399})),growth:1,season:'spring',light:'day'};}
 try{const saved=JSON.parse(localStorage.getItem(KEY));if(saved&&Array.isArray(saved.plants)&&saved.plants.every(p=>speciesMap[p.species]&&Number.isFinite(p.x)&&Number.isFinite(p.z))){state=saved;}else{demo();$('welcome').hidden=false;}}catch(e){demo();$('welcome').hidden=false;}
+state.world=normalizeWorld(state.world);state.building=normalizeBuilding(state.building);
 state.season=normalizeSeason(state.season);state.light=normalizeLook(state.light);state.photoStrength=normalizeStrength(state.photoStrength);
 renderPlants();
 
@@ -229,7 +257,10 @@ $('zoomIn').onclick=()=>zoom(.85);$('zoomOut').onclick=()=>zoom(1.18);
 let currentLook;
 function setLight(type){
  state.light=normalizeLook(type);state.photoStrength=state.light==='day'?1:normalizeStrength(state.photoStrength);
- currentLook=photoLook(state.season,state.light,state.photoStrength);const look=currentLook;
+ currentLook=photoLook(state.season,state.light,state.photoStrength);
+ const world=WORLDS[normalizeWorld(state.world)];
+ if(state.light==='day'){currentLook={...currentLook,top:world.sky,bottom:world.ground,ground:world.ground};}
+ const look=currentLook;
  document.body.dataset.light=state.light;
  scene.userData.photoLook=look;scene.userData.backdropColor=look.bottom;
  sun.color.set(look.sun);sun.intensity=look.sunPower;sun.position.set(...look.position);
@@ -239,6 +270,7 @@ function setLight(type){
  scene.fog.color.set(look.bottom);scene.fog.near=look.fogNear;scene.fog.far=look.fogFar;
  renderer.toneMappingExposure=look.exposure;
  renderer.domElement.style.filter=look.filter;
+ ground.visible=state.world==='white';
  $('viewport').style.background=`linear-gradient(180deg,${look.top},${look.bottom})`;
  $('photoVignette').style.background=`radial-gradient(circle farthest-corner at center,rgba(29,39,47,0) 55%,${look.vignetteColor} 100%)`;
  $('light').innerHTML=`◈ <span>${look.name}</span>`;
@@ -266,6 +298,7 @@ const rainN=500,rainPositions=new Float32Array(rainN*6);for(let i=0;i<rainN;i++)
 // Weather is an explicit toggle, independent of frame rate and garden undo.
 function setRain(enabled){
  isRaining=enabled;
+ soundscape.set(normalizeWorld(state.world),enabled,state.season==='winter');
  rainLines.visible=enabled;
  $('rain').classList.toggle('active',enabled);
  $('rain').setAttribute('aria-pressed',String(enabled));
@@ -281,15 +314,17 @@ function setRain(enabled){
 }
 rainLines.frustumCulled=false;
 setRain(false);
-$('rain').onclick=()=>{setRain(!isRaining);const word=state.season==='winter'?'雪':'雨';toast(isRaining?word+'落下了 · 再点一次即可停止':word+'停了，继续布置你的花园吧');};
+$('rain').onclick=()=>{setRain(!isRaining);applyWorld();const word=state.season==='winter'?'雪':'雨';toast(isRaining?word+'落下了 · 再点一次即可停止':word+'停了，继续布置你的花园吧');};
 function applySeason(){
+ state.world=normalizeWorld(state.world);state.building=normalizeBuilding(state.building);
+ buildArchitecture(state.building);applyWorld();
  state.season=normalizeSeason(state.season);
  const palette=SEASONS[state.season],winter=state.season==='winter';
  document.body.dataset.season=state.season;
  $('seasonTitle').textContent=palette.title;
  $('seasonDescription').textContent=palette.note;
  document.querySelectorAll('[data-season-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.seasonChoice===state.season)));
- snowCaps.forEach(cap=>cap.visible=winter);
+ snowCaps.forEach(cap=>cap.visible=winter||state.world==='snow');
  pondMaterial.color.setHex(winter?0xc0d4df:0x9bb6a7);
  pondMaterial.opacity=winter?.3:.72;
  scene.fog.color.set(palette.paper);
@@ -301,6 +336,26 @@ function applySeason(){
   card.querySelector('small').textContent=winter&&leaf.fraction===0?'落叶休眠':s.flower&&flower.fraction===0?'本季无花':s.note;
  });
 }
+let appliedWorld=null;
+function applyWorld(){
+ const world=WORLDS[state.world];if(appliedWorld!==state.world){worldScene.set(state.world);appliedWorld=state.world;}
+ document.body.dataset.world=state.world;
+ $('worldNote').textContent=world.note;$('soundNote').textContent=world.sound+(isRaining?(state.season==='winter'?' · 落雪':' · 雨声'):'');
+ document.querySelectorAll('[data-world]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.world===state.world)));
+ document.querySelectorAll('[data-building]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.building===state.building)));
+}
+for(const button of document.querySelectorAll('[data-world]'))button.onclick=()=>{
+ if(state.world===button.dataset.world)return;checkpoint();state.world=button.dataset.world;applySeason();finish();toast('已来到'+WORLDS[state.world].name+' · 植物布置已保留');
+};
+for(const button of document.querySelectorAll('[data-building]'))button.onclick=()=>{
+ if(state.building===button.dataset.building)return;checkpoint();state.building=button.dataset.building;applySeason();finish();toast('已切换'+BUILDINGS[state.building]+' · 两层植物位置已保留');
+};
+$('soundToggle').onclick=async()=>{
+ const button=$('soundToggle');button.disabled=true;
+ try{const enabled=await soundscape.toggle();button.setAttribute('aria-pressed',String(enabled));button.textContent=enabled?'关闭声音':'开启声音';$('soundStatus').textContent=enabled?'声景已开启':'当前静音';}
+ catch(error){toast('浏览器未能开启声音，请再点击一次');}finally{button.disabled=false;}
+};
+$('soundVolume').oninput=()=>{soundscape.setVolume(+$('soundVolume').value/100);$('soundVolumeValue').textContent=$('soundVolume').value+'%';};
 document.querySelectorAll('[data-season-choice]').forEach(button=>button.onclick=()=>{
  const next=button.dataset.seasonChoice;if(next===state.season)return;
  checkpoint();state.season=next;applySeason();finish();toast(SEASONS[next].title+' · '+SEASONS[next].note);
@@ -325,7 +380,7 @@ $('capture').onclick=()=>{
   const c=document.createElement('canvas'),w=renderer.domElement.width,h=renderer.domElement.height;
   c.width=w;c.height=h+110;const ctx=c.getContext('2d');paintPhoto(ctx,renderer.domElement,w,h,currentLook);
   ctx.fillStyle='#f5f4ed';ctx.fillRect(0,h,w,110);ctx.fillStyle='#344a3b';ctx.font='28px SimSun,serif';
-  ctx.fillText('未完之境 · '+SEASONS[state.season].title+' / '+currentLook.name,35,h+50);
+  ctx.fillText('未完之境 · '+WORLDS[state.world].name+' / '+SEASONS[state.season].title+' / '+currentLook.name,35,h+50);
   ctx.font='13px sans-serif';ctx.fillStyle='#7d8972';ctx.fillText(`${state.plants.length} 株植物 / ${new Set(state.plants.map(p=>p.species)).size} 种生机    人停下的地方，自然继续。`,35,h+80);
   const a=document.createElement('a');a.download=`未完之境-${SEASONS[state.season].name}日花园-${currentLook.name}.png`;a.href=c.toDataURL('image/png');a.click();
   toast('已保存 PNG · '+currentLook.name+'光影已保留');
